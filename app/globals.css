@@ -1,4 +1,17 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,100..900;1,9..144,100..900&family=JetBrains+Mono:wght@100..800&display=swap');
+
 @import "tailwindcss";
+
+@theme {
+  --color-clay-500: #C0563C;
+  --color-saffron-500: #E8A33D;
+  --color-sage-500: #6B8A6F;
+  --color-cream-50: #FBF7F0;
+  --color-ink-900: #1F1B16;
+
+  --font-display: "Fraunces", serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
 
 :root {
   --background: #ffffff;
@@ -9,7 +22,6 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -20,7 +32,5 @@
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  @apply bg-cream-50 text-ink-900;
 }
