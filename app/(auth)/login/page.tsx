@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type FormEvent } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -11,49 +12,165 @@ export default function LoginPage() {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
     setError(null)
+    setSuccess(false)
     setLoading(true)
-    const supabase = createClient()
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    setLoading(false)
-    if (error) {
-      setError(error.message)
-      return
+
+    try {
+      const supabase = createClient()
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      })
+
+      if (signInError) {
+        setError(signInError.message)
+        return
+      }
+
+      setSuccess(true)
+      window.setTimeout(() => {
+        router.replace('/')
+        router.refresh()
+      }, 700)
+    } catch {
+      setError('We could not connect right now. Please try again.')
+    } finally {
+      setLoading(false)
     }
-    router.push('/')
-    router.refresh()
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-cream-50 p-6">
-      <Card className="w-full max-w-md">
-        <h1 className="mb-6 font-display text-2xl text-ink-900">Log in</h1>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <Input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
-          <Input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-          {error && <p className="text-sm text-clay-500">{error}</p>}
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? 'Logging in...' : 'Log in'}
-          </Button>
-        </form>
-      </Card>
+    <main className="flex min-h-screen items-center justify-center bg-cream-50 px-5 py-10 sm:px-8">
+      <div className="grid w-full max-w-5xl items-center gap-10 lg:grid-cols-[1fr_0.9fr] lg:gap-16">
+        <section className="mx-auto w-full max-w-lg lg:mx-0">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-3 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-clay-500"
+            aria-label="StewRun home"
+          >
+            <span className="flex size-11 items-center justify-center rounded-xl bg-clay-500 font-display text-xl font-semibold text-cream-50">
+              S
+            </span>
+            <span className="font-display text-2xl font-semibold tracking-tight text-ink-900">
+              StewRun
+            </span>
+          </Link>
+
+          <p className="mt-10 text-sm font-semibold uppercase tracking-[0.16em] text-sage-500">
+            Home-cooked, right on time
+          </p>
+          <h1 className="mt-3 max-w-md font-display text-4xl leading-tight tracking-tight text-ink-900 sm:text-5xl">
+            Lunch worth looking forward to.
+          </h1>
+          <p className="mt-5 max-w-md text-base leading-7 text-ink-900/70">
+            Order a home-cooked meal for pickup at a Harare hub. Sign in to
+            continue.
+          </p>
+        </section>
+
+        <Card className="mx-auto w-full max-w-md border border-ink-900/8 p-6 shadow-[0_12px_40px_rgba(31,27,22,0.06)] sm:p-8">
+          <div className="mb-7">
+            <h2 className="font-display text-3xl tracking-tight text-ink-900">
+              Welcome back
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-ink-900/65">
+              Sign in to pick up where you left off.
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div className="space-y-2">
+              <label htmlFor="email" className="block text-sm font-medium text-ink-900">
+                Email address
+              </label>
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                inputMode="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                required
+                className="min-h-12 rounded-lg border-ink-900/20 px-4"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="password" className="block text-sm font-medium text-ink-900">
+                Password
+              </label>
+              <div className="relative">
+                <Input
+                  id="password"
+                  name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  required
+                  className="min-h-12 rounded-lg border-ink-900/20 px-4 pr-20"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((visible) => !visible)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  aria-pressed={showPassword}
+                  className="absolute inset-y-0 right-3 my-auto rounded px-2 text-sm font-medium text-clay-500 hover:text-ink-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay-500"
+                >
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
+            </div>
+
+            {error && (
+              <p
+                role="alert"
+                className="rounded-lg border border-clay-500/25 bg-clay-500/5 px-4 py-3 text-sm leading-5 text-ink-900"
+              >
+                {error}
+              </p>
+            )}
+            {success && (
+              <p
+                role="status"
+                className="rounded-lg border border-sage-500/30 bg-sage-500/10 px-4 py-3 text-sm leading-5 text-ink-900"
+              >
+                You’re signed in. Taking you to StewRun…
+              </p>
+            )}
+
+            <Button
+              type="submit"
+              className="min-h-12 w-full rounded-lg text-base font-semibold disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={loading || success}
+              aria-busy={loading}
+            >
+              {loading ? 'Signing in…' : success ? 'Signed in' : 'Sign in'}
+            </Button>
+          </form>
+
+          <p className="mt-6 text-center text-sm text-ink-900/70">
+            New to StewRun?{' '}
+            <Link
+              href="/register"
+              className="font-semibold text-clay-500 underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay-500"
+            >
+              Create an account
+            </Link>
+          </p>
+        </Card>
+      </div>
     </main>
   )
 }
