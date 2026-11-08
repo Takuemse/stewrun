@@ -276,6 +276,104 @@ async function findExistingRequestResponse(
   );
 }
 
+/**
+ * GET /api/meal-requests
+ *
+ * Returns the authenticated customer's meal requests, newest first,
+ * with the number of submitted cook offers for each request.
+ */
+export async function GET() {
+  // 1. Authenticate the user.
+  const auth = await getAuthenticatedUser();
+
+  if (!auth.ok) {
+    return NextResponse.json(
+      { error: auth.error },
+      { status: auth.status },
+    );
+  }
+
+  // 2. Only customers can view their meal requests.
+  if (auth.role !== "customer") {
+    return NextResponse.json(
+      { error: "Customer access required." },
+      { status: 403 },
+    );
+  }
+
+  // 3. Use the authenticated user's Supabase session.
+  // RLS remains active; no service-role client is used.
+  const supabase = await createServerSupabaseClient();
+
+  // 4. Fetch only this customer's requests.
+  const { data: requests, error: requestsError } = await supabase
+    .from("meal_requests")
+    .select(REQUEST_SELECT)
+    .eq("customer_id", auth.user.id)
+    .order("created_at", { ascending: false });
+
+  if (requestsError) {
+    console.error("Customer meal request lookup failed:", {
+      code: requestsError.code,
+      message: requestsError.message,
+    });
+
+    return NextResponse.json(
+      { error: "We could not load your meal requests." },
+      { status: 500 },
+    );
+  }
+
+  const customerRequests = requests ?? [];
+
+  // 5. Avoid an unnecessary offers query when there are no requests.
+  if (customerRequests.length === 0) {
+    return NextResponse.json({ requests: [] });
+  }
+
+  // 6. Fetch submitted offers belonging to these requests.
+  // RLS ensures customers can only read offers for their own requests.
+  const requestIds = customerRequests.map((request) => request.id);
+
+  const { data: offers, error: offersError } = await supabase
+    .from("cook_offers")
+    .select("request_id")
+    .in("request_id", requestIds)
+    .eq("status", "submitted");
+
+  if (offersError) {
+    console.error("Customer offer count lookup failed:", {
+      code: offersError.code,
+      message: offersError.message,
+    });
+
+    return NextResponse.json(
+      { error: "We could not load offer information for your requests." },
+      { status: 500 },
+    );
+  }
+
+  // 7. Count submitted offers for each request.
+  const offerCounts = new Map<string, number>();
+
+  for (const offer of offers ?? []) {
+    offerCounts.set(
+      offer.request_id,
+      (offerCounts.get(offer.request_id) ?? 0) + 1,
+    );
+  }
+
+  // 8. Add the offer count to each request.
+  const requestsWithOfferCounts = customerRequests.map((request) => ({
+    ...request,
+    offer_count: offerCounts.get(request.id) ?? 0,
+  }));
+
+  return NextResponse.json({
+    requests: requestsWithOfferCounts,
+  });
+}
+
 export async function POST(request: Request) {
   // 1. Authenticate the user.
   const auth = await getAuthenticatedUser();
