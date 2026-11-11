@@ -31,7 +31,9 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from("orders")
-    .select("*")
+    .select(
+     "id, total, status, payment_status, hub, pickup_date, pickup_time, reservation_expires_at",
+    )
     .eq("customer_id", auth.user.id)
     .order("created_at", { ascending: false });
 

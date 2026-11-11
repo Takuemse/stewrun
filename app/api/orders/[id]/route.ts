@@ -32,7 +32,9 @@ export async function GET(_request: Request, { params }: RouteContext) {
 
   const { data, error } = await supabase
     .from("orders")
-    .select("*")
+    .select(
+        "id, total, status, payment_status, hub, pickup_date, pickup_time, reservation_expires_at",
+    )
     .eq("id", id)
     .eq("customer_id", auth.user.id)
     .maybeSingle();
