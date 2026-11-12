@@ -110,31 +110,12 @@ ALTER TABLE public.negotiations
 
 -- ============================================================
 -- SECTION 1A: ORDER PRICE RECONCILIATION
--- ============================================================
-
--- Preserve original item prices in orders.items.
--- Record any negotiated reduction separately at order level.
--- Existing orders are backfilled with no negotiated adjustment.
-
-ALTER TABLE public.orders
-    ADD COLUMN original_offer_total numeric(10,2),
-    ADD COLUMN negotiated_discount numeric(10,2) NOT NULL DEFAULT 0;
-
-UPDATE public.orders
-SET
-    original_offer_total = meal_subtotal,
-    negotiated_discount = 0
-WHERE original_offer_total IS NULL;
-
-ALTER TABLE public.orders
-    ALTER COLUMN original_offer_total SET NOT NULL,
-    ADD CONSTRAINT orders_original_offer_total_positive_check
-        CHECK (original_offer_total > 0),
-    ADD CONSTRAINT orders_negotiated_discount_nonnegative_check
-        CHECK (negotiated_discount >= 0),
-    ADD CONSTRAINT orders_negotiated_pricing_reconciliation_check
-        CHECK (original_offer_total - negotiated_discount = meal_subtotal);
-
+-- Reservation pricing columns and reservation-only integrity
+-- constraints are established by:
+-- 20261109121500_foundational_order_reservation_schema.sql
+--
+-- Historical orders are deliberately not backfilled with
+-- invented reservation pricing data.
 
 -- ============================================================
 -- SECTION 2: CUSTOMER COUNTEROFFER RPC
