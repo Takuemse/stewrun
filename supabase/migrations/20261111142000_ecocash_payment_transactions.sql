@@ -34,7 +34,8 @@ create table if not exists public.payment_transactions (
         'succeeded',
         'failed',
         'expired',
-        'reconciliation_required'
+        'reconciliation_required',
+        'manual_review_required'
       )
     ),
 
@@ -56,20 +57,22 @@ create table if not exists public.payment_transactions (
 );
 
 -- An order may have only one active or unresolved payment attempt.
--- Reconciliation-required attempts must block another charge.
+-- Reconciliation-required and manual-review attempts must block another charge.
 create unique index if not exists
   payment_transactions_one_active_per_order
 on public.payment_transactions(order_id)
 where status in (
   'initiated',
   'pending',
-  'reconciliation_required'
+  'reconciliation_required',
+  'manual_review_required'
 );
 
 create index if not exists
   payment_transactions_order_created_idx
 on public.payment_transactions(order_id, created_at desc);
 
+-- Manual-review payments are not automatically expired or retried.
 create index if not exists
   payment_transactions_expiry_idx
 on public.payment_transactions(expires_at)
@@ -86,5 +89,3 @@ to service_role;
 
 comment on table public.payment_transactions is
   'Private payment attempt records. Access is restricted to trusted server-side operations.';
-
-
