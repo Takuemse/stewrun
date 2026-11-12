@@ -85,6 +85,11 @@ BEGIN
     -- Unlike now(), clock_timestamp() is not fixed at transaction start.
     v_now := pg_catalog.clock_timestamp();
 
+    -- Idempotency: do not process an attempt already flagged for review.
+    IF v_payment.status = 'manual_review_required' THEN
+        RETURN 'manual_review_required';
+    END IF;
+
     -- Idempotency: never process an already completed attempt again.
     IF v_payment.status = 'succeeded' THEN
         RETURN 'already_processed';
@@ -179,9 +184,11 @@ BEGIN
     END IF;
 
     -- Money was received, but the order cannot safely be confirmed.
-    -- Keep the order unchanged and flag the payment for manual review.
+    -- Preserve provider evidence, keep the order unchanged,
+    -- and flag the payment for manual review.
     UPDATE public.payment_transactions
     SET
+        status = 'manual_review_required',
         failure_reason = CASE
             WHEN v_order.payment_status = 'paid'
                 THEN 'duplicate_verified_payment_requires_manual_review'
