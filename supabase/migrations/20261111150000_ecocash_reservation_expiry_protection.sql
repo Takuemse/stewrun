@@ -1,4 +1,5 @@
-﻿-- StewRun: Protect active EcoCash payments from reservation expiry.
+﻿
+-- StewRun: Protect active EcoCash payments from reservation expiry.
 -- Preserve the existing request -> order lock order.
 
 CREATE OR REPLACE FUNCTION public.expire_order_reservation(p_order_id uuid)
@@ -80,7 +81,8 @@ BEGIN
       AND pt.status IN (
           'initiated',
           'pending',
-          'reconciliation_required'
+          'reconciliation_required',
+          'manual_review_required'
       )
     FOR UPDATE;
 
@@ -134,7 +136,10 @@ BEGIN
            JOIN public.payment_transactions pt
              ON pt.order_id = o.id
            WHERE o.meal_request_id = v_request_id
-             AND pt.status = 'reconciliation_required'
+             AND pt.status IN (
+                 'reconciliation_required',
+                 'manual_review_required'
+             )
        ) THEN
 
         UPDATE public.meal_requests
