@@ -1,0 +1,7 @@
+﻿BEGIN;
+
+REVOKE REFERENCES, TRIGGER, TRUNCATE
+ON TABLE public.negotiations
+FROM service_role;
+
+COMMIT;

@@ -8,8 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "mocha --require tsx \"test/**/*.test.ts\"",
-    "testci": "mocha --require tsx \"test/**/*.test.ts\""
+    "test": "node --conditions=react-server ./node_modules/mocha/bin/mocha.js --require tsx \"test/**/*.test.ts\"",
+    "testci": "node --conditions=react-server ./node_modules/mocha/bin/mocha.js --require tsx \"test/**/*.test.ts\""
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
@@ -17,7 +17,8 @@
     "next": "16.4.4",
     "openai": "^7.51.0",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "server-only": "^0.0.1"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",
