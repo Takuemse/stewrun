@@ -1,4 +1,5 @@
-﻿CREATE OR REPLACE FUNCTION public.create_ecocash_payment_attempt(
+﻿
+CREATE OR REPLACE FUNCTION public.create_ecocash_payment_attempt(
     p_order_id uuid,
     p_customer_id uuid,
     p_end_user_id text,
@@ -62,6 +63,20 @@ BEGIN
         RAISE EXCEPTION 'Associated meal request not found';
     END IF;
 
+    -- Block payment initiation if any order under this request
+    -- has a verified payment requiring manual review.
+    IF EXISTS (
+        SELECT 1
+        FROM public.payment_transactions AS pt
+        JOIN public.orders AS o
+          ON o.id = pt.order_id
+        WHERE o.meal_request_id = v_meal_request_id
+          AND pt.status = 'manual_review_required'
+    ) THEN
+        RAISE EXCEPTION
+            'This meal request has a verified payment requiring manual review. No new payment is permitted.';
+    END IF;
+
     -- Lock and re-check the order after acquiring the request lock.
     SELECT o.*
     INTO v_order
@@ -98,7 +113,12 @@ BEGIN
     PERFORM 1
     FROM public.payment_transactions AS pt
     WHERE pt.order_id = p_order_id
-      AND pt.status IN ('initiated', 'pending', 'reconciliation_required')
+      AND pt.status IN (
+          'initiated',
+          'pending',
+          'reconciliation_required',
+          'manual_review_required'
+      )
     FOR UPDATE;
 
     IF FOUND THEN
