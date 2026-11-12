@@ -1,3 +1,4 @@
+
 CREATE OR REPLACE FUNCTION public.create_order_reservation(
     p_offer_id uuid
 )
@@ -116,6 +117,22 @@ BEGIN
     IF v_customer_id <> v_user_id THEN
         RAISE EXCEPTION
             'You cannot reserve another customer''s request.';
+    END IF;
+
+
+    -- Block all new reservations when this request has a verified
+    -- payment requiring manual review, regardless of which order
+    -- received that payment.
+    IF EXISTS (
+        SELECT 1
+        FROM public.payment_transactions pt
+        JOIN public.orders o
+          ON o.id = pt.order_id
+        WHERE o.meal_request_id = v_request_id
+          AND pt.status = 'manual_review_required'
+    ) THEN
+        RAISE EXCEPTION
+            'This meal request has a verified payment requiring manual review. No new reservation is permitted.';
     END IF;
 
 
@@ -244,6 +261,7 @@ BEGIN
             RAISE EXCEPTION
                 'Existing reservation has no expiration timestamp.';
         END IF;
+
         -- Prevent releasing a reservation with an unresolved payment.
 
         SELECT pt.status
@@ -253,13 +271,14 @@ BEGIN
           AND pt.status IN (
               'initiated',
               'pending',
-              'reconciliation_required'
+              'reconciliation_required',
+              'manual_review_required'
           )
         FOR UPDATE;
 
         IF FOUND THEN
             RAISE EXCEPTION
-                'This reservation has an unresolved payment attempt. Payment reconciliation is required before another reservation can be created.';
+                'This reservation has an unresolved payment attempt. Payment reconciliation or manual review is required before another reservation can be created.';
         END IF;
 
         -- Return the existing reservation for a repeated selection.
@@ -307,9 +326,7 @@ BEGIN
 
         -- Reopen the request only after the previous reservation
         -- has been cancelled AND no other active unpaid reservation
-        -- remains for this request. Keep the in-memory status aligned
-        -- with the database update so Section H rejects the request
-        -- if it could not safely be reopened.
+        -- or unresolved payment remains for this request.
 
         IF v_request_status = 'offer_selected'
            AND NOT EXISTS (
@@ -318,6 +335,18 @@ BEGIN
                WHERE o.meal_request_id = v_request_id
                  AND o.status = 'pending'
                  AND o.payment_status = 'pending'
+           )
+           AND NOT EXISTS (
+               SELECT 1
+               FROM public.payment_transactions pt
+               JOIN public.orders o ON o.id = pt.order_id
+               WHERE o.meal_request_id = v_request_id
+                 AND pt.status IN (
+                     'initiated',
+                     'pending',
+                     'reconciliation_required',
+                     'manual_review_required'
+                 )
            ) THEN
 
             UPDATE public.meal_requests
