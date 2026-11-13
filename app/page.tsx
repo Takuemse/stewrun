@@ -177,7 +177,7 @@ function isValidSavedMealRequest(
     typeof value.pickup_date !== "string" ||
     !isValidDate(value.pickup_date) ||
     typeof value.pickup_time !== "string" ||
-    !/^(0[8-9]|1\d|2[0-3]):[0-5]\d$/.test(value.pickup_time) ||
+    !/^(0[8-9]|1\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(value.pickup_time) ||
     value.status !== "open" ||
     typeof value.offers_close_at !== "string" ||
     Number.isNaN(Date.parse(value.offers_close_at))
