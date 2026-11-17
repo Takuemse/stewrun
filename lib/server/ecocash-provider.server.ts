@@ -35,7 +35,7 @@ export type EcoCashChargeResult =
       reason: string;
     };
 
-    export type EcoCashLookupResult =
+export type EcoCashLookupResult =
   | {
       outcome: "verified_success";
       providerStatus: "Charged";
@@ -127,6 +127,65 @@ function getLocalEcoCashNumber(endUserId: string): string {
   return match[1];
 }
 
+/**
+ * Extracts a short, sanitized provider error description.
+ *
+ * Provider response bodies are untrusted. Never include credentials,
+ * merchant PINs, customer phone numbers, or full transaction payloads.
+ */
+async function getSafeHttpErrorDetails(
+  response: Response,
+  config: EcoCashProviderConfig,
+  customerNumber?: string,
+): Promise<string> {
+  const status = `HTTP ${response.status} (${response.statusText || "unknown status"})`;
+
+  try {
+    const rawBody = await response.text();
+
+    if (!rawBody) {
+      return status;
+    }
+
+    const secrets = [
+      config.username,
+      config.password,
+      config.merchantPin,
+      config.merchantCode,
+      config.merchantNumber,
+      config.terminalId,
+      customerNumber ?? "",
+    ].filter((secret) => secret.length > 0);
+
+    let safeBody = rawBody.slice(0, 1000);
+
+    for (const secret of secrets) {
+      safeBody = safeBody.replaceAll(secret, "[REDACTED]");
+    }
+
+    // Redact common sensitive JSON fields even if they contain
+    // values that are not identical to our configured credentials.
+    safeBody = safeBody.replace(
+      /("(?:password|pin|merchantPin|authorization|token|access_token|endUserId|phoneNumber)"\s*:\s*)"[^"]*"/gi,
+      '$1"[REDACTED]"',
+    );
+
+    safeBody = safeBody.replace(
+      /(authorization\s*:\s*basic\s+)[A-Za-z0-9+/=]+/gi,
+      "$1[REDACTED]",
+    );
+
+    // Keep the diagnostic compact and on one line.
+    safeBody = safeBody.replace(/\s+/g, " ").trim();
+
+    return safeBody
+      ? `${status}; provider response: ${safeBody}`
+      : status;
+  } catch {
+    return status;
+  }
+}
+
 export async function initiateEcoCashCharge(
   input: EcoCashChargeInput,
   fetchImpl: typeof fetch = fetch,
@@ -198,7 +257,11 @@ export async function initiateEcoCashCharge(
   if (!response.ok) {
     return {
       outcome: "uncertain",
-      reason: "EcoCash returned an unconfirmed HTTP response.",
+      reason: await getSafeHttpErrorDetails(
+        response,
+        config,
+        localNumber,
+      ),
     };
   }
 
@@ -297,7 +360,11 @@ export async function lookupEcoCashCharge(
   if (!response.ok) {
     return {
       outcome: "uncertain",
-      reason: "EcoCash returned an unconfirmed lookup response.",
+      reason: await getSafeHttpErrorDetails(
+        response,
+        config,
+        localNumber,
+      ),
     };
   }
 

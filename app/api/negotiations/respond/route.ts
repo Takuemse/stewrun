@@ -32,6 +32,13 @@ function getDatabaseErrorResponse(error: DatabaseError) {
     };
   }
 
+  if (message.includes("rejection reason")) {
+    return {
+      status: 400,
+      error: "A rejection reason between 3 and 500 characters is required.",
+    };
+  }
+
   if (message.includes("approved cook account required")) {
     return {
       status: 403,
@@ -186,6 +193,7 @@ export async function POST(request: Request) {
     await supabase.rpc("respond_to_negotiation", {
       p_negotiation_id: validation.value.negotiation_id,
       p_decision: validation.value.decision,
+      p_response_message: validation.value.response_message,
     });
 
   if (submissionError) {

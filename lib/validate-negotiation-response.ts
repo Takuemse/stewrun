@@ -3,6 +3,7 @@
 export type ValidatedNegotiationResponse = {
   negotiation_id: string;
   decision: NegotiationDecision;
+  response_message: string | null;
 };
 
 export type NegotiationResponseValidationResult =
@@ -61,11 +62,43 @@ export function validateNegotiationResponse(
     };
   }
 
+  let responseMessage: string | null = null;
+  if (input.response_message !== undefined && input.response_message !== null) {
+    if (typeof input.response_message !== "string") {
+      return {
+        ok: false,
+        error: "Rejection reason must be text.",
+      };
+    }
+
+    responseMessage = input.response_message.trim();
+  }
+
+  if (
+    input.decision === "rejected" &&
+    (!responseMessage ||
+      responseMessage.length < 3 ||
+      responseMessage.length > 500)
+  ) {
+    return {
+      ok: false,
+      error: "A rejection reason between 3 and 500 characters is required.",
+    };
+  }
+
+  if (input.decision === "accepted" && responseMessage !== null) {
+    return {
+      ok: false,
+      error: "An acceptance response cannot include a rejection reason.",
+    };
+  }
+
   return {
     ok: true,
     value: {
       negotiation_id: input.negotiation_id,
       decision: input.decision,
+      response_message: responseMessage,
     },
   };
 }

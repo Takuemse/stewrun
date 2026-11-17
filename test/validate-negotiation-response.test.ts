@@ -41,11 +41,39 @@ describe("validateNegotiationResponse", () => {
   it("accepts a rejected decision", () => {
     const value = getValue(
       validateNegotiationResponse(
-        createValidInput({ decision: "rejected" }),
+        createValidInput({
+          decision: "rejected",
+          response_message: "The proposed total is below the ingredient cost.",
+        }),
       ),
     );
 
     assert.strictEqual(value.decision, "rejected");
+    assert.strictEqual(
+      value.response_message,
+      "The proposed total is below the ingredient cost.",
+    );
+  });
+
+  it("requires a reason when rejecting a counter-offer", () => {
+    assert.strictEqual(
+      validateNegotiationResponse(
+        createValidInput({ decision: "rejected" }),
+      ).ok,
+      false,
+    );
+  });
+
+  it("rejects a rejection reason longer than 500 characters", () => {
+    assert.strictEqual(
+      validateNegotiationResponse(
+        createValidInput({
+          decision: "rejected",
+          response_message: "x".repeat(501),
+        }),
+      ).ok,
+      false,
+    );
   });
 
   it("accepts an uppercase UUID", () => {
