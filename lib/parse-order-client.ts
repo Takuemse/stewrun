@@ -1,4 +1,6 @@
+
 import {
+  MAX_BUDGET,
   MAX_ITEM_NAME_LENGTH,
   MAX_ITEM_QUANTITY,
   MAX_MEAL_ITEMS,
@@ -8,6 +10,7 @@ import {
   VALID_HUBS,
   type Confidence,
   type Hub,
+  type MealClarification,
 } from "./parse-order";
 
 export const PICKUP_HUBS = VALID_HUBS;
@@ -20,10 +23,12 @@ export interface ParsedMealRequest {
     name: string;
     quantity: number;
   }>;
+  budget: number | null;
   hub: PickupHub;
   pickup_time: string;
   confidence: ParseConfidence;
   notes: string;
+  clarification: MealClarification;
 }
 
 export class ParseOrderApiError extends Error {
@@ -42,6 +47,19 @@ function isRecord(value: unknown): value is Record<string, unknown> {
     value !== null &&
     !Array.isArray(value)
   );
+}
+
+function isValidBudget(value: unknown): value is number {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value) ||
+    value <= 0 ||
+    value > MAX_BUDGET
+  ) {
+    return false;
+  }
+
+  return Math.abs(value * 100 - Math.round(value * 100)) < 0.000001;
 }
 
 function isParsedMealRequest(value: unknown): value is ParsedMealRequest {
@@ -73,8 +91,12 @@ function isParsedMealRequest(value: unknown): value is ParsedMealRequest {
     );
   });
 
+  const validBudget =
+    value.budget === null || isValidBudget(value.budget);
+
   return (
     validItems &&
+    validBudget &&
     typeof value.hub === "string" &&
     PICKUP_HUBS.some((hub) => hub === value.hub) &&
     typeof value.pickup_time === "string" &&
@@ -85,7 +107,8 @@ function isParsedMealRequest(value: unknown): value is ParsedMealRequest {
       value.confidence === "low"
     ) &&
     typeof value.notes === "string" &&
-    value.notes.length <= MAX_NOTES_LENGTH
+    value.notes.length <= MAX_NOTES_LENGTH &&
+    (value.clarification === null || value.clarification === "meat_type")
   );
 }
 

@@ -1,3 +1,4 @@
+
 export const VALID_HUBS = ["Eastgate", "Joina City", "Avondale"] as const;
 
 export const MAX_PARSE_INPUT_LENGTH = 2000;
@@ -6,19 +7,23 @@ export const MIN_ITEM_NAME_LENGTH = 2;
 export const MAX_ITEM_NAME_LENGTH = 150;
 export const MAX_ITEM_QUANTITY = 20;
 export const MAX_NOTES_LENGTH = 1000;
+export const MAX_BUDGET = 99_999_999.99;
 
 export type Hub = (typeof VALID_HUBS)[number];
 export type Confidence = "high" | "medium" | "low";
+export type MealClarification = "meat_type" | null;
 
 export interface ParsedOrderOutput {
   items: Array<{
     name: string;
     quantity: number;
   }>;
+  budget: number | null;
   hub: Hub;
   pickup_time: string;
   confidence: Confidence;
   notes: string;
+  clarification: MealClarification;
 }
 
 function isHub(value: unknown): value is Hub {
@@ -34,6 +39,19 @@ function isConfidence(value: unknown): value is Confidence {
     value === "medium" ||
     value === "low"
   );
+}
+
+function isValidBudget(value: unknown): value is number {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value) ||
+    value <= 0 ||
+    value > MAX_BUDGET
+  ) {
+    return false;
+  }
+
+  return Math.abs(value * 100 - Math.round(value * 100)) < 0.000001;
 }
 
 export function validateParsedOrder(
@@ -126,6 +144,18 @@ export function validateParsedOrder(
     });
   }
 
+  let budget: number | null = null;
+
+  if (obj.budget !== undefined && obj.budget !== null) {
+    if (!isValidBudget(obj.budget)) {
+      return {
+        error: "budget must be a positive amount with no more than two decimal places",
+      };
+    }
+
+    budget = obj.budget;
+  }
+
   if (!isHub(obj.hub)) {
     return {
       error: "Invalid hub; must be Eastgate, Joina City or Avondale",
@@ -161,6 +191,14 @@ export function validateParsedOrder(
     };
   }
 
+  const clarification = obj.clarification;
+
+  if (clarification !== null && clarification !== "meat_type") {
+    return {
+      error: "Invalid clarification; expected meat_type or null",
+    };
+  }
+
   let notes = "";
 
   if (obj.notes !== undefined) {
@@ -180,10 +218,12 @@ export function validateParsedOrder(
   return {
     value: {
       items: validatedItems,
+      budget,
       hub: obj.hub,
       pickup_time: trimmedTime,
       confidence: obj.confidence,
       notes,
+      clarification,
     },
   };
 }

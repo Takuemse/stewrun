@@ -84,6 +84,7 @@ export async function GET(
         id,
         cook_id,
         message,
+        is_alternative,
         total_price,
         created_at,
         submitted_at
@@ -158,7 +159,8 @@ export async function GET(
           status,
           created_at,
           responded_at,
-          agreed_total
+          agreed_total,
+          response_message
         `,
       )
       .eq("request_id", requestId)
@@ -228,6 +230,7 @@ export async function GET(
     return {
       id: offer.id,
       message: offer.message,
+      is_alternative: offer.is_alternative,
       total_price: offer.total_price,
       created_at: offer.created_at,
       submitted_at: offer.submitted_at,

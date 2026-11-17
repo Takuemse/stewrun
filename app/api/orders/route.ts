@@ -29,13 +29,7 @@ export async function GET() {
 
   const supabase = await createServerSupabaseClient();
 
-  const { data, error } = await supabase
-    .from("orders")
-    .select(
-     "id, total, status, payment_status, hub, pickup_date, pickup_time, reservation_expires_at",
-    )
-    .eq("customer_id", auth.user.id)
-    .order("created_at", { ascending: false });
+  const { data, error } = await supabase.rpc("get_customer_orders");
 
   if (error) {
     console.error("Failed to fetch customer orders:", error.message);
@@ -133,11 +127,11 @@ export async function POST(request: Request) {
     );
   }
 
-  // 6. Create the reservation using the authenticated customer session.
+  // 6. Create and confirm a cash-at-pickup order using the customer session.
   const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase.rpc(
-    "create_order_reservation",
+    "create_cash_order",
     {
       p_offer_id: validation.value.offer_id,
     },
@@ -160,17 +154,16 @@ export async function POST(request: Request) {
     );
   }
 
-  // 7. Verify the database returned a usable reservation.
+  // 7. Verify the database returned a usable order.
   const reservation = Array.isArray(data) ? data[0] : data;
 
   if (
     !reservation ||
     typeof reservation !== "object" ||
     !("order_id" in reservation) ||
-    !("reservation_expires_at" in reservation) ||
     !("amount_due" in reservation)
   ) {
-    console.error("Order reservation returned an invalid result.");
+    console.error("Cash order creation returned an invalid result.");
 
     return NextResponse.json(
       { error: "Unable to confirm the reservation." },
@@ -180,7 +173,6 @@ export async function POST(request: Request) {
 
   const result = reservation as {
     order_id: unknown;
-    reservation_expires_at: unknown;
     amount_due: unknown;
   };
 
@@ -188,12 +180,10 @@ export async function POST(request: Request) {
 
   if (
     typeof result.order_id !== "string" ||
-    typeof result.reservation_expires_at !== "string" ||
-    !Number.isFinite(Date.parse(result.reservation_expires_at)) ||
     !Number.isFinite(amountDue) ||
     amountDue <= 0
   ) {
-    console.error("Order reservation returned invalid reservation fields.");
+    console.error("Cash order creation returned invalid order fields.");
 
     return NextResponse.json(
       { error: "Unable to confirm the reservation." },
@@ -206,8 +196,8 @@ export async function POST(request: Request) {
     {
       reservation: {
         order_id: result.order_id,
-        reservation_expires_at: result.reservation_expires_at,
         amount_due: amountDue,
+        payment_method: "cash",
       },
     },
     { status: 200 },

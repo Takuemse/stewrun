@@ -30,6 +30,7 @@ const validOrder = {
   pickup_time: "12:00",
   confidence: "high",
   notes: "",
+  clarification: null,
 };
 
 function createAIResponse(
@@ -393,6 +394,34 @@ describe("handleParseOrderRequest", () => {
       assert.strictEqual(body.hub, "Eastgate");
       assert.strictEqual(body.pickup_time, "12:00");
       assert.strictEqual(body.confidence, "high");
+      assert.strictEqual(body.clarification, null);
+    });
+
+    it("returns the structured meat follow-up without guessing", async () => {
+      const response = await handleParseOrderRequest(
+        createRequest({ input: "Ndinoda sadza nemuriwo nenyama" }),
+        createDependencies({
+          createAIResponse: async () =>
+            createAIResponse({
+              output_text: JSON.stringify({
+                ...validOrder,
+                items: [{
+                  name: "Sadza, vegetables and meat",
+                  quantity: 1,
+                }],
+                clarification: "meat_type",
+              }),
+            }),
+        }),
+      );
+
+      const body = await getJson(response);
+
+      assert.strictEqual(response.status, 200);
+      assert.strictEqual(body.clarification, "meat_type");
+      assert.deepStrictEqual(body.items, [
+        { name: "Sadza, vegetables and meat", quantity: 1 },
+      ]);
     });
 
     it("trims customer input before sending it to OpenAI", async () => {
@@ -428,6 +457,8 @@ describe("handleParseOrderRequest", () => {
       assert.strictEqual(response.status, 200);
       assert.ok(receivedInstructions.includes("Shona"));
       assert.ok(receivedInstructions.includes("Never invent"));
+      assert.ok(receivedInstructions.includes("any meat"));
+      assert.ok(receivedInstructions.includes("Never extract an amount described only as a per-meal price"));
       assert.ok(receivedInstructions.includes("Eastgate"));
     });
 

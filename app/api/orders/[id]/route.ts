@@ -30,14 +30,9 @@ export async function GET(_request: Request, { params }: RouteContext) {
 
   const supabase = await createServerSupabaseClient();
 
-  const { data, error } = await supabase
-    .from("orders")
-    .select(
-        "id, total, status, payment_status, hub, pickup_date, pickup_time, reservation_expires_at",
-    )
-    .eq("id", id)
-    .eq("customer_id", auth.user.id)
-    .maybeSingle();
+  const { data, error } = await supabase.rpc("get_customer_order", {
+    p_order_id: id,
+  });
 
   if (error) {
     console.error("Failed to fetch order:", error.message);
@@ -48,12 +43,14 @@ export async function GET(_request: Request, { params }: RouteContext) {
     );
   }
 
-  if (!data) {
+  const order = Array.isArray(data) ? data[0] : null;
+
+  if (!order) {
     return NextResponse.json(
       { error: "Order not found" },
       { status: 404 },
     );
   }
 
-  return NextResponse.json({ order: data });
+  return NextResponse.json({ order });
 }

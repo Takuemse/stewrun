@@ -20,6 +20,7 @@ function createValidInput(
     pickup_time: "08:30",
     confidence: "high",
     notes: "",
+    clarification: null,
     ...overrides,
   };
 }
@@ -39,6 +40,7 @@ describe("validateParsedOrder", () => {
       pickup_time: "08:30",
       confidence: "high",
       notes: "Extra sauce on the side",
+      clarification: null,
     };
 
     const result = validateParsedOrder(input);
@@ -340,6 +342,22 @@ describe("validateParsedOrder", () => {
     );
 
     assert.strictEqual(getValue(result).confidence, "low");
+  });
+
+  it("accepts a meat type clarification", () => {
+    const result = validateParsedOrder(
+      createValidInput({ clarification: "meat_type" }),
+    );
+
+    assert.strictEqual(getValue(result).clarification, "meat_type");
+  });
+
+  it("rejects unsupported clarification types", () => {
+    const result = validateParsedOrder(
+      createValidInput({ clarification: "vegetable_type" }),
+    );
+
+    assert.ok("error" in result);
   });
 
   it("normalizes pickup_time whitespace", () => {

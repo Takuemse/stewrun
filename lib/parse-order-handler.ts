@@ -1,4 +1,5 @@
-﻿import type { AuthResult } from "@/lib/supabase/auth.server";
+﻿
+import type { AuthResult } from "@/lib/supabase/auth.server";
 import { readRequestBody } from "@/lib/request-body";
 import {
   MAX_NOTES_LENGTH,
@@ -73,6 +74,11 @@ function getInstructions(): string {
     "Do not add vegetables, meat, rice, sauce, or any other ingredient unless the customer mentions it or the meaning is unambiguously present in their words.",
     "For example, 'ndinoda sadza nenyama' means the customer wants sadza with meat. Do not add vegetables.",
     "For example, 'Sadza ne nyama' is a valid request for sadza with meat, even though the request is short.",
+    "When the customer asks for meat but does not name a kind and does not say any meat, set clarification to meat_type so the customer can choose beef, chicken, any meat, or another kind. Keep the requested meal and quantity in items while asking.",
+    "A request such as 'ndinoda sadza nemuriwo nenyama' needs clarification because the kind of meat is not named.",
+    "If the customer says any meat, nyama chero ipi, or answers a meat-type follow-up with any meat, treat that as a complete choice and set clarification to null. Do not ask again.",
+    "If the customer answers a meat-type follow-up with beef, chicken, or another named meat, include that exact meat in the meal and set clarification to null.",
+    "Use clarification null for all other requests.",
     "Preserve the customer's intended meal accurately. You may translate Shona food descriptions into English without changing their meaning.",
     "Do not treat a short but understandable meal request as ambiguous merely because it contains few words.",
     "If no quantity is stated, use quantity 1.",
@@ -85,12 +91,28 @@ function getInstructions(): string {
     "For gibberish, unrelated text, or requests that do not identify food, return an empty items array and low confidence.",
     "If the customer says something broad such as 'I want lunch' without identifying food, return an empty items array.",
     "If a food description is genuinely ambiguous, use low confidence and explain what needs clarification in notes. Do not guess the missing ingredients.",
+    "",
+    "BUDGET INTERPRETATION RULES:",
+    "The budget field represents the customer's suggested price PER PLATE, not the total price for the entire request.",
+    "Extract a budget only when the customer clearly states an amount per individual plate. Equivalent wording such as 'each', 'per serving', or 'per portion' counts only when it clearly means the price for one plate.",
+    "Never extract an amount described only as a per-meal price or as the whole meal's price; that could mean the total for the order.",
+    "Understand equivalent expressions in English, Shona, and mixed English/Shona.",
+    "Examples of explicit per-plate budgets include '$2.50 each', '$2.50 per plate', 'two dollars per portion', 'my budget is $3 per plate', and clear Shona or mixed-language equivalents.",
+    "Return the budget as a positive number with no more than two decimal places.",
+    "If the customer does not mention a budget, return budget as null.",
+    "Never estimate, invent, infer, or calculate a budget from meal prices, market prices, quantities, or assumptions.",
+    "Do not interpret a total budget as a per-plate budget.",
+    "For example, 'I have $10 for three plates' does not establish a per-plate budget. Return null and explain the ambiguity in notes.",
+    "If an amount is mentioned but it is unclear whether it is per plate or for the entire order, return null and explain the ambiguity in notes.",
+    "If the customer clearly states a total budget and also clearly states a separate per-plate budget, extract only the per-plate amount.",
+    "Do not confuse the quantity of meals with the budget amount.",
+    "If no explicit per-plate budget exists, the customer will be asked to enter one before submitting the request.",
+    "",
     "Supported pickup hubs are Eastgate, Joina City, and Avondale.",
     "If the customer does not specify a hub, use Eastgate as the temporary default and mention this in notes.",
     "Pickup time must use 24-hour HH:MM format and must not be earlier than 08:00.",
     "If no pickup time is specified, use 12:00 and explain this default in notes.",
     "Notes must not exceed 1000 characters.",
-    "Never estimate or invent meal prices.",
     "Return only the structured response matching the supplied schema.",
   ].join("\n");
 }
@@ -330,6 +352,3 @@ export async function handleParseOrderRequest(
 
   return Response.json(output);
 }
-
-
-

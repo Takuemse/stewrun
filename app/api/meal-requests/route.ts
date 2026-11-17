@@ -5,6 +5,7 @@ import {
   createServerSupabaseClient,
 } from "@/lib/supabase/auth.server";
 import { readRequestBody } from "@/lib/request-body";
+import { MAX_BUDGET } from "@/lib/parse-order";
 
 const VALID_HUBS = ["Eastgate", "Joina City", "Avondale"] as const;
 const MAX_REQUEST_BODY_BYTES = 16_384;
@@ -21,6 +22,7 @@ interface MealRequestItem {
 
 interface SubmittedRequest {
   items: MealRequestItem[];
+  budget: number;
   hub: PickupHub;
   pickupDate: string;
   pickupTime: string;
@@ -54,6 +56,21 @@ function isPickupHub(value: unknown): value is PickupHub {
   return (
     typeof value === "string" &&
     VALID_HUBS.some((hub) => hub === value)
+  );
+}
+
+function isValidBudget(value: unknown): value is number {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value) ||
+    value <= 0 ||
+    value > MAX_BUDGET
+  ) {
+    return false;
+  }
+
+  return (
+    Math.abs(value * 100 - Math.round(value * 100)) < 0.000001
   );
 }
 
@@ -166,8 +183,18 @@ function matchesSubmittedRequest(
       ? existing.pickup_time.slice(0, 5)
       : null;
 
+  const existingBudget =
+    typeof existing.budget === "number"
+      ? existing.budget
+      : typeof existing.budget === "string"
+        ? Number(existing.budget)
+        : NaN;
+
   return (
     areItemsEqual(existing.items, submitted.items) &&
+    Number.isFinite(existingBudget) &&
+    Math.round(existingBudget * 100) ===
+      Math.round(submitted.budget * 100) &&
     existing.hub === submitted.hub &&
     existing.pickup_date === submitted.pickupDate &&
     existingPickupTime === submitted.pickupTime &&
@@ -326,9 +353,51 @@ export async function GET() {
 
   const customerRequests = requests ?? [];
 
-  // 5. Avoid an unnecessary offers query when there are no requests.
   if (customerRequests.length === 0) {
     return NextResponse.json({ requests: [] });
+  }
+
+  const { data: orderStates, error: orderStatesError } = await supabase.rpc(
+    "get_customer_request_order_states",
+  );
+
+  const orderStateFunctionNotInstalled =
+    orderStatesError?.code === "PGRST202" ||
+    orderStatesError?.code === "42883";
+
+  if (orderStatesError && !orderStateFunctionNotInstalled) {
+    console.error("Customer request order status lookup failed:", {
+      code: orderStatesError.code,
+      message: orderStatesError.message,
+    });
+
+    return NextResponse.json(
+      { error: "We could not load order status for your meal requests." },
+      { status: 500 },
+    );
+  }
+
+  if (orderStateFunctionNotInstalled) {
+    console.warn(
+      "Customer request order status migration is not installed; using scheduled pickup dates until it is applied.",
+    );
+  }
+
+  const latestOrderStates = new Map<
+    string,
+    { order_status: string; cash_payment_status: string | null }
+  >();
+
+  for (const orderState of orderStates ?? []) {
+    if (
+      typeof orderState.meal_request_id === "string" &&
+      !latestOrderStates.has(orderState.meal_request_id)
+    ) {
+      latestOrderStates.set(orderState.meal_request_id, {
+        order_status: orderState.order_status,
+        cash_payment_status: orderState.cash_payment_status,
+      });
+    }
   }
 
   // 6. Fetch submitted offers belonging to these requests.
@@ -367,6 +436,9 @@ export async function GET() {
   const requestsWithOfferCounts = customerRequests.map((request) => ({
     ...request,
     offer_count: offerCounts.get(request.id) ?? 0,
+    order_status: latestOrderStates.get(request.id)?.order_status ?? null,
+    cash_payment_status:
+      latestOrderStates.get(request.id)?.cash_payment_status ?? null,
   }));
 
   return NextResponse.json({
@@ -475,7 +547,20 @@ export async function POST(request: Request) {
     );
   }
 
-  // 7. Validate pickup hub.
+  // 7. Validate the customer's per-plate budget.
+  if (!isValidBudget(body.budget)) {
+    return NextResponse.json(
+      {
+        error:
+          "Please enter a valid budget per plate greater than zero, with no more than two decimal places.",
+      },
+      { status: 400 },
+    );
+  }
+
+  const budget = body.budget;
+
+  // 8. Validate pickup hub.
   if (!isPickupHub(body.hub)) {
     return NextResponse.json(
       { error: "Please select a valid pickup hub." },
@@ -483,7 +568,7 @@ export async function POST(request: Request) {
     );
   }
 
-  // 8. Validate pickup date.
+  // 9. Validate pickup date.
   if (
     typeof body.pickup_date !== "string" ||
     !isValidDate(body.pickup_date)
@@ -494,7 +579,7 @@ export async function POST(request: Request) {
     );
   }
 
-  // 9. Validate pickup time.
+  // 10. Validate pickup time.
   if (
     typeof body.pickup_time !== "string" ||
     !/^(0[8-9]|1\d|2[0-3]):[0-5]\d$/.test(body.pickup_time)
@@ -505,7 +590,7 @@ export async function POST(request: Request) {
     );
   }
 
-  // 10. Validate optional notes.
+  // 11. Validate optional notes.
   if (
     body.notes !== undefined &&
     body.notes !== null &&
@@ -529,6 +614,7 @@ export async function POST(request: Request) {
 
   const submitted: SubmittedRequest = {
     items: validatedItems.items,
+    budget,
     hub: body.hub,
     pickupDate: body.pickup_date,
     pickupTime: body.pickup_time,
@@ -537,7 +623,7 @@ export async function POST(request: Request) {
 
   const supabase = await createServerSupabaseClient();
 
-  // 11. Return an existing request before applying new-request
+  // 12. Return an existing request before applying new-request
   // cutoff rules. A legitimate retry must still work after 10:00 AM.
   const existingResponse = await findExistingRequestResponse(
     supabase,
@@ -550,7 +636,7 @@ export async function POST(request: Request) {
     return existingResponse;
   }
 
-  // 12. Calculate the offer deadline: 10:00 AM Harare time
+  // 13. Calculate the offer deadline: 10:00 AM Harare time
   // on the customer's selected pickup date.
   const offersCloseAt = harareDateTimeToIso(
     body.pickup_date,
@@ -558,14 +644,14 @@ export async function POST(request: Request) {
     0,
   );
 
-  // 13. Save using the authenticated user's Supabase session.
+  // 14. Save using the authenticated user's Supabase session.
   const { data, error } = await supabase
     .from("meal_requests")
     .insert({
       customer_id: auth.user.id,
       submission_key: submissionKey,
       items: validatedItems.items,
-      budget: null,
+      budget,
       hub: body.hub,
       pickup_date: body.pickup_date,
       pickup_time: body.pickup_time,

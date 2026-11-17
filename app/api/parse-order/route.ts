@@ -1,4 +1,5 @@
-﻿import OpenAI from "openai";
+﻿
+import OpenAI from "openai";
 
 import { getAuthenticatedUser } from "@/lib/supabase/auth.server";
 import {
@@ -6,7 +7,10 @@ import {
   type AIResponseLike,
 } from "@/lib/parse-order-handler";
 
-import { MAX_MEAL_ITEMS } from "@/lib/parse-order";
+import {
+  MAX_BUDGET,
+  MAX_MEAL_ITEMS,
+} from "@/lib/parse-order";
 
 const OPENAI_MODEL = "gpt-6-luna";
 
@@ -37,6 +41,22 @@ const orderResponseSchema = {
         required: ["name", "quantity"],
       },
     },
+    budget: {
+      anyOf: [
+        {
+          type: "number",
+          exclusiveMinimum: 0,
+          maximum: MAX_BUDGET,
+          description:
+            "The customer's explicitly stated budget per plate. Do not calculate, estimate, or invent this amount.",
+        },
+        {
+          type: "null",
+          description:
+            "Use null when the customer has not explicitly stated a budget.",
+        },
+      ],
+    },
     hub: {
       type: "string",
       enum: ["Eastgate", "Joina City", "Avondale"],
@@ -53,8 +73,30 @@ const orderResponseSchema = {
       type: "string",
       description: "Clarifications or assumptions made.",
     },
+    clarification: {
+      anyOf: [
+        {
+          type: "string",
+          enum: ["meat_type"],
+          description:
+            "Ask which kind of meat only when the customer requested generic meat without saying any meat.",
+        },
+        {
+          type: "null",
+          description: "No follow-up question is needed.",
+        },
+      ],
+    },
   },
-  required: ["items", "hub", "pickup_time", "confidence", "notes"],
+  required: [
+    "items",
+    "budget",
+    "hub",
+    "pickup_time",
+    "confidence",
+    "notes",
+    "clarification",
+  ],
 };
 
 export async function POST(request: Request): Promise<Response> {
