@@ -93,7 +93,7 @@ export default function HomePage() {
           </p>
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
             <Link
-              href="/start"
+              href="/register?role=customer"
               className="inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-clay-500 px-6 text-sm font-semibold text-white hover:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay-500"
             >
               Start a lunch request
@@ -281,7 +281,7 @@ export default function HomePage() {
             </p>
           </div>
           <Link
-            href="/start"
+            href="/register?role=customer"
             className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-md bg-clay-500 px-6 text-sm font-semibold text-white hover:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cream-50"
           >
             Start a lunch request
