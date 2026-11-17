@@ -45,7 +45,10 @@ function mapRpcError(message: string): Response {
       return jsonError("The pickup code is incorrect.", 400);
 
     case "Order payment has not been confirmed":
-      return jsonError("This order has not been paid.", 409);
+      return jsonError(
+        "This order is not eligible until payment is confirmed or cash is due at pickup.",
+        409,
+      );
 
     case "Order is not eligible to be marked ready":
     case "Order is not ready for collection":

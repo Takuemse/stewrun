@@ -4,6 +4,7 @@ import {
   createServerSupabaseClient,
   getAuthenticatedUser,
 } from "@/lib/supabase/auth.server";
+import { validateSupportedHubs } from "@/lib/validate-supported-hubs";
 
 const TIME_ZONE = "Africa/Harare";
 
@@ -70,7 +71,7 @@ export async function GET() {
 
   const { data: cookProfile, error: profileError } = await supabase
     .from("cook_profiles")
-    .select("status")
+    .select("status, is_available, supported_hubs")
     .eq("user_id", auth.user.id)
     .maybeSingle();
 
@@ -87,6 +88,24 @@ export async function GET() {
     return NextResponse.json(
       { error: "An approved cook account is required." },
       { status: 403 },
+    );
+  }
+
+  if (!cookProfile.is_available) {
+    return NextResponse.json(
+      { requests: [], paused: true },
+      { status: 200 },
+    );
+  }
+
+  const supportedHubs = validateSupportedHubs(cookProfile.supported_hubs);
+  if (!supportedHubs.ok) {
+    console.error("Cook profile has invalid supported hubs.", {
+      cookId: auth.user.id,
+    });
+    return NextResponse.json(
+      { error: "Unable to verify your supported pickup hubs." },
+      { status: 500 },
     );
   }
 
@@ -108,6 +127,7 @@ export async function GET() {
       `,
     )
     .eq("status", "open")
+    .in("hub", supportedHubs.value)
     .gt("offers_close_at", nowIso)
     .order("pickup_date", { ascending: true })
     .order("pickup_time", { ascending: true });
@@ -126,7 +146,7 @@ export async function GET() {
   );
 
   return NextResponse.json(
-    { requests: availableRequests },
+    { requests: availableRequests, paused: false },
     { status: 200 },
   );
 }

@@ -2,7 +2,6 @@ import * as mocha from "mocha";
 import assert from "node:assert";
 
 import {
-  MAX_OFFER_ITEMS,
   MAX_OFFER_ITEM_NAME_LENGTH,
   MAX_OFFER_DESCRIPTION_LENGTH,
   MAX_OFFER_MESSAGE_LENGTH,
@@ -52,6 +51,23 @@ describe("validateCookOffer", () => {
     assert.strictEqual(value.items[0].name, "Chicken and rice");
     assert.strictEqual(value.items[0].quantity, 2);
     assert.strictEqual(value.items[0].unit_price, 5.5);
+    assert.strictEqual(value.is_alternative, false);
+  });
+
+  it("accepts an explicitly labeled alternative offer", () => {
+    const result = validateCookOffer(
+      createValidInput({ is_alternative: true }),
+    );
+
+    assert.strictEqual(getValue(result).is_alternative, true);
+  });
+
+  it("rejects a non-boolean alternative marker", () => {
+    const result = validateCookOffer(
+      createValidInput({ is_alternative: "yes" }),
+    );
+
+    assert.strictEqual(result.ok, false);
   });
 
   it("trims the offer message", () => {
@@ -158,37 +174,15 @@ describe("validateCookOffer", () => {
     assert.strictEqual(result.ok, false);
   });
 
-  it("accepts exactly 20 offer items", () => {
-    const items = Array.from(
-      { length: MAX_OFFER_ITEMS },
-      (_, index) => ({
-        name: `Meal ${index + 1}`,
-        quantity: 1,
-        unit_price: 2,
-      }),
-    );
+  it("rejects offers with multiple meal entries", () => {
+    const items = [
+      { name: "Sadza", quantity: 2, unit_price: 2 },
+      { name: "Chicken", quantity: 2, unit_price: 3 },
+    ];
 
-    const result = validateCookOffer(
-      createValidInput({ items }),
-    );
-
-    assert.strictEqual(getValue(result).items.length, 20);
-  });
-
-  it("rejects more than 20 offer items", () => {
-    const items = Array.from(
-      { length: MAX_OFFER_ITEMS + 1 },
-      (_, index) => ({
-        name: `Meal ${index + 1}`,
-        quantity: 1,
-        unit_price: 2,
-      }),
-    );
-
-    assert.strictEqual(
-      validateCookOffer(createValidInput({ items })).ok,
-      false,
-    );
+    const result = validateCookOffer(createValidInput({ items }));
+    assert.strictEqual(result.ok, false);
+    if (!result.ok) assert.match(result.error, /one complete meal/);
   });
 
   it("rejects a non-object offer item", () => {

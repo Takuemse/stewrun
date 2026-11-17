@@ -1,4 +1,4 @@
-export const MAX_OFFER_ITEMS = 20;
+export const MAX_OFFER_ITEMS = 1;
 export const MAX_OFFER_ITEM_NAME_LENGTH = 150;
 export const MAX_OFFER_DESCRIPTION_LENGTH = 500;
 export const MAX_OFFER_MESSAGE_LENGTH = 1000;
@@ -17,6 +17,7 @@ export type ValidatedCookOfferItem = {
 export type ValidatedCookOffer = {
   request_id: string;
   message: string | null;
+  is_alternative: boolean;
   items: ValidatedCookOfferItem[];
 };
 
@@ -83,6 +84,16 @@ export function validateCookOffer(
     };
   }
 
+  if (
+    input.is_alternative !== undefined &&
+    typeof input.is_alternative !== "boolean"
+  ) {
+    return {
+      ok: false,
+      error: "Alternative offer selection must be true or false.",
+    };
+  }
+
   let message: string | null = null;
 
   if (input.message !== undefined && input.message !== null) {
@@ -114,13 +125,10 @@ export function validateCookOffer(
     };
   }
 
-  if (
-    input.items.length < 1 ||
-    input.items.length > MAX_OFFER_ITEMS
-  ) {
+  if (input.items.length !== 1) {
     return {
       ok: false,
-      error: "An offer must contain between 1 and 20 items.",
+      error: "An offer must describe one complete meal.",
     };
   }
 
@@ -259,6 +267,7 @@ export function validateCookOffer(
     value: {
       request_id: requestId,
       message,
+      is_alternative: input.is_alternative === true,
       items: validatedItems,
     },
   };

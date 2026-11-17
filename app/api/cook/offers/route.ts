@@ -11,6 +11,71 @@ import { validateCookOffer } from "@/lib/validate-cook-offer";
 
 const MAX_REQUEST_BODY_BYTES = 32_768;
 
+export async function GET() {
+  const auth = await getAuthenticatedUser();
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+  if (auth.role !== "cook") {
+    return NextResponse.json({ error: "Cook access required." }, { status: 403 });
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const { data: profile, error: profileError } = await supabase
+    .from("cook_profiles")
+    .select("status")
+    .eq("user_id", auth.user.id)
+    .maybeSingle();
+
+  if (profileError || !profile || profile.status !== "approved") {
+    return NextResponse.json(
+      { error: profileError ? "Unable to verify cook approval." : "An approved cook account is required." },
+      { status: profileError ? 500 : 403 },
+    );
+  }
+
+  const { data: offers, error: offersError } = await supabase
+    .from("cook_offers")
+    .select("id, request_id, total_price, submitted_at")
+    .eq("cook_id", auth.user.id)
+    .eq("status", "submitted")
+    .order("submitted_at", { ascending: true });
+
+  if (offersError) {
+    console.error("Cook submitted offer lookup failed:", offersError);
+    return NextResponse.json({ error: "Unable to retrieve your submitted offers." }, { status: 500 });
+  }
+
+  if (!offers?.length) return NextResponse.json({ offers: [] });
+
+  const offerIds = offers.map((offer) => offer.id);
+  const requestIds = [...new Set(offers.map((offer) => offer.request_id))];
+  const [{ data: items, error: itemsError }, { data: requests, error: requestsError }] = await Promise.all([
+    supabase.from("cook_offer_items").select("offer_id, name, description, quantity, unit_price, line_total").in("offer_id", offerIds),
+    supabase.from("meal_requests").select("id, items, hub, pickup_date, pickup_time").in("id", requestIds),
+  ]);
+
+  if (itemsError || requestsError) {
+    console.error("Cook submitted offer details lookup failed:", itemsError ?? requestsError);
+    return NextResponse.json({ error: "Unable to retrieve submitted offer details." }, { status: 500 });
+  }
+
+  const itemsByOffer = new Map<string, NonNullable<typeof items>>();
+  for (const item of items ?? []) {
+    const current = itemsByOffer.get(item.offer_id) ?? [];
+    current.push(item);
+    itemsByOffer.set(item.offer_id, current);
+  }
+  const requestById = new Map((requests ?? []).map((request) => [request.id, request]));
+
+  return NextResponse.json({
+    offers: offers.flatMap((offer) => {
+      const request = requestById.get(offer.request_id);
+      return request ? [{ ...offer, items: itemsByOffer.get(offer.id) ?? [], request }] : [];
+    }),
+  });
+}
+
 type DatabaseError = {
   code?: string;
   message: string;
@@ -57,7 +122,8 @@ function getDatabaseErrorResponse(error: DatabaseError) {
   if (
     message.includes("no longer open") ||
     message.includes("deadline has passed") ||
-    message.includes("no longer available")
+    message.includes("no longer available") ||
+    message.includes("not accepting new requests")
   ) {
     return {
       status: 409,
@@ -84,6 +150,7 @@ function getDatabaseErrorResponse(error: DatabaseError) {
     message.includes("meal description") ||
     message.includes("custom meals") ||
     message.includes("offer total") ||
+    message.includes("requested plate quantity") ||
     message.includes("menu item")
   ) {
     return {
@@ -187,7 +254,7 @@ export async function POST(request: Request) {
 
   const { data: cookProfile, error: profileError } = await supabase
     .from("cook_profiles")
-    .select("status")
+    .select("status, is_available")
     .eq("user_id", auth.user.id)
     .maybeSingle();
 
@@ -210,6 +277,13 @@ export async function POST(request: Request) {
     );
   }
 
+  if (!cookProfile.is_available) {
+    return NextResponse.json(
+      { error: "Your cook profile is paused and cannot submit new offers." },
+      { status: 409 },
+    );
+  }
+
   // 7. Create and submit the offer in one database operation.
   // The database function handles ownership, request status,
   // deadline checks, menu-item verification and total calculation.
@@ -217,7 +291,9 @@ export async function POST(request: Request) {
     "create_and_submit_cook_offer",
     {
       p_request_id: validation.value.request_id,
-      p_message: validation.value.message,
+      p_message: validation.value.is_alternative
+        ? `{{STEURUN_ALTERNATIVE}} ${validation.value.message ?? ""}`
+        : validation.value.message,
       p_items: validation.value.items,
     },
   );
