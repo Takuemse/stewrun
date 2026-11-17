@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#FBF7F0" />
+    <title>You're offline · StewRun</title>
+    <style>
+      :root { color-scheme: light; font-family: Arial, sans-serif; background: #FBF7F0; color: #1F1B16; }
+      body { min-height: 100vh; margin: 0; display: grid; place-items: center; padding: 24px; box-sizing: border-box; }
+      main { width: min(100%, 420px); text-align: center; }
+      .brand { display: inline-grid; width: 48px; height: 48px; place-items: center; border-radius: 12px; background: #C0563C; color: white; font-size: 24px; font-weight: 700; }
+      h1 { margin: 24px 0 8px; font-family: Georgia, serif; font-size: 32px; }
+      p { color: rgb(31 27 22 / 70%); line-height: 1.6; }
+      button { min-height: 48px; margin-top: 16px; padding: 0 20px; border: 0; border-radius: 8px; background: #C0563C; color: white; font-size: 16px; font-weight: 700; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <span class="brand" aria-hidden="true">S</span>
+      <h1>You're offline</h1>
+      <p>Reconnect to browse cooks, review offers or check your pickup details.</p>
+      <button type="button" onclick="location.reload()">Try again</button>
+    </main>
+  </body>
+</html>

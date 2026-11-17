@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -10,7 +10,9 @@ import { Card } from '@/components/ui/card'
 
 export default function RegisterPage() {
   const router = useRouter()
+  const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
+  const [role, setRole] = useState<'customer' | 'cook'>('customer')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -18,6 +20,14 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      const requestedRole = new URLSearchParams(window.location.search).get('role')
+      if (requestedRole === 'cook') setRole('cook')
+    }, 0)
+    return () => window.clearTimeout(timeout)
+  }, [])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -40,7 +50,13 @@ export default function RegisterPage() {
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: email.trim(),
         password,
-        options: { data: { role: 'customer' } },
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=/signup-success`,
+          data: {
+            full_name: fullName.trim(),
+            role,
+          },
+        },
       })
 
       if (signUpError) {
@@ -51,7 +67,7 @@ export default function RegisterPage() {
       if (data.session) {
         setSuccess('Your account is ready. Taking you to StewRun…')
         window.setTimeout(() => {
-          router.replace('/')
+          router.replace(role === 'cook' ? '/cook' : '/dashboard')
           router.refresh()
         }, 900)
       } else {
@@ -84,14 +100,14 @@ export default function RegisterPage() {
           </Link>
 
           <p className="mt-10 text-sm font-semibold uppercase tracking-[0.16em] text-sage-500">
-            A better lunch break starts here
+            A pre-order lunch marketplace for Harare
           </p>
           <h1 className="mt-3 max-w-md font-display text-4xl leading-tight tracking-tight text-ink-900 sm:text-5xl">
-            Make room for something homemade.
+            Make room for a lunch made local.
           </h1>
           <p className="mt-5 max-w-md text-base leading-7 text-ink-900/70">
-            Create a customer account to order home-cooked lunches for pickup
-            around Harare.
+            Tell Ziva what you would like, compare offers from home cooks and
+            small caterers, then collect your scheduled meal at a Harare hub.
           </p>
         </section>
 
@@ -101,11 +117,61 @@ export default function RegisterPage() {
               Create your account
             </h2>
             <p className="mt-2 text-sm leading-6 text-ink-900/65">
-              It only takes a moment to get started.
+              Choose how you would like to use StewRun.
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
+            <div className="space-y-2">
+              <label htmlFor="full-name" className="block text-sm font-medium text-ink-900">
+                Name
+              </label>
+              <Input
+                id="full-name"
+                name="full_name"
+                type="text"
+                autoComplete="name"
+                placeholder="Your name"
+                value={fullName}
+                onChange={(event) => setFullName(event.target.value)}
+                minLength={2}
+                maxLength={100}
+                required
+                className="min-h-12 rounded-lg border-ink-900/20 px-4"
+              />
+            </div>
+
+            <fieldset className="space-y-2">
+              <legend className="block text-sm font-medium text-ink-900">
+                I am joining as a
+              </legend>
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  ['customer', 'Customer'],
+                  ['cook', 'Cook'],
+                ] as const).map(([value, label]) => (
+                  <label
+                    key={value}
+                    className={`flex min-h-12 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm font-medium ${
+                      role === value
+                        ? 'border-clay-500 bg-clay-500/5 text-ink-900'
+                        : 'border-ink-900/15 bg-white text-ink-900/70'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="role"
+                      value={value}
+                      checked={role === value}
+                      onChange={() => setRole(value)}
+                      className="accent-clay-500"
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
             <div className="space-y-2">
               <label htmlFor="email" className="block text-sm font-medium text-ink-900">
                 Email address
@@ -213,7 +279,7 @@ export default function RegisterPage() {
 
             <Button
               type="submit"
-              className="min-h-12 w-full rounded-lg text-base font-semibold disabled:cursor-not-allowed disabled:opacity-60"
+              className="min-h-12 w-full rounded-md text-base font-semibold disabled:cursor-not-allowed disabled:opacity-60"
               disabled={loading || Boolean(success)}
               aria-busy={loading}
             >
