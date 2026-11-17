@@ -8,10 +8,10 @@ import {
   type FormEvent,
 } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
-  ArrowRight,
   ExternalLink,
   MapPin,
   Search,
@@ -22,6 +22,7 @@ import {
   type ParsedMealRequest,
 } from "@/lib/parse-order-client";
 import { createClient } from "@/lib/supabase/client";
+import { saveParsedMealDraft } from "@/lib/parsed-meal-draft";
 import {
   clearCustomerRequestDraft,
   readCustomerRequestDraft,
@@ -306,6 +307,7 @@ function isAfterHarareCutoff(): boolean {
 }
 
 export default function Home() {
+  const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
 
   const [authError, setAuthError] = useState<string | null>(null);
@@ -437,6 +439,16 @@ export default function Home() {
       setRequestState(
         result.clarification === "meat_type" ? "clarification" : "review",
       );
+      if (!result.clarification) {
+        saveParsedMealDraft({
+          description: trimmedRequest,
+          items: result.items.map((item) => ({
+            name: item.name,
+            quantity: matchingDraft?.quantity ?? item.quantity,
+          })),
+        });
+        router.push("/start");
+      }
     } catch (error) {
       setRequestRequiresSignIn(
         error instanceof ParseOrderApiError && error.status === 401,
@@ -492,6 +504,16 @@ export default function Home() {
       setRequestState(
         result.clarification === "meat_type" ? "clarification" : "review",
       );
+      if (!result.clarification) {
+        saveParsedMealDraft({
+          description: originalRequest,
+          items: result.items.map((item) => ({
+            name: item.name,
+            quantity: matchingDraft?.quantity ?? item.quantity,
+          })),
+        });
+        router.push("/start");
+      }
     } catch (error) {
       setRequestError(
         error instanceof ParseOrderApiError
@@ -686,12 +708,9 @@ export default function Home() {
             </p>
           </div>
 
-          <Link href="/my-requests" className="inline-flex min-h-11 items-center gap-2 rounded-md border border-ink-900/15 bg-white px-4 text-sm font-semibold text-ink-900 hover:border-ink-900/30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay-500">
-            My Lunch <ArrowRight aria-hidden="true" className="size-4 text-clay-500" />
-          </Link>
         </header>
 
-        <div className="mt-8 grid items-start gap-10 lg:grid-cols-[minmax(0,1.45fr)_minmax(16rem,0.55fr)] lg:gap-14">
+        <div className="mt-8 grid items-start gap-10">
           <Card className="border border-ink-900/10 p-5 shadow-none sm:p-7 lg:p-8">
             {savedRequest ? (
               <SuccessPanel
@@ -858,64 +877,6 @@ export default function Home() {
             )}
           </Card>
 
-          <aside className="space-y-8 lg:pt-2">
-            <section className="rounded-xl border border-sage-500/20 bg-white p-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-sage-600">
-                Your next step
-              </p>
-              <h2 className="mt-2 font-display text-2xl tracking-tight text-ink-900">
-                Compare first. Pay at pickup.
-              </h2>
-              <p className="mt-2 text-sm leading-6 text-ink-900/70">
-                Cooks set their own price per plate. Choose an offer only after
-                you have checked the meal and full total. Pay the cook in cash
-                when you collect.
-              </p>
-              <Link href="/my-requests" className="mt-4 inline-flex min-h-11 items-center text-sm font-semibold text-clay-700 underline underline-offset-4">
-                See your lunch activity <ArrowRight aria-hidden="true" className="ml-2 size-4" />
-              </Link>
-            </section>
-          </aside>
-        </div>
-      </section>
-
-      <section
-        aria-labelledby="pickup-hubs"
-        className="border-y border-ink-900/10 bg-white"
-      >
-        <div className="mx-auto grid max-w-7xl gap-6 px-5 py-8 sm:px-8 md:grid-cols-[0.8fr_1.2fr] md:items-center">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-sage-500">
-              Choose where to collect
-            </p>
-
-            <h2
-              id="pickup-hubs"
-              className="mt-2 font-display text-2xl tracking-tight text-ink-900"
-            >
-              Choose a Harare pickup hub
-            </h2>
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            {PICKUP_LOCATIONS.map((location) => (
-              <div
-                key={location.hub}
-                className="border-l-2 border-sage-500/60 px-4 py-2"
-              >
-                <p className="text-sm font-semibold text-ink-900">
-                  {location.name}
-                </p>
-                <p className="mt-1 text-xs leading-5 text-ink-900/65">
-                  {location.address}
-                </p>
-              </div>
-            ))}
-          </div>
-          <p className="text-sm leading-6 text-ink-900/65 md:col-span-2">
-            These are provisional mall reference locations for the Harare
-            pilot. Specific collection points have not been confirmed.
-          </p>
         </div>
       </section>
 

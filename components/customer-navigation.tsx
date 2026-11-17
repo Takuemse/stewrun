@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import AccountSignOut from "@/components/account-sign-out";
 import NotificationBell from "@/components/notification-bell";
 import { createClient } from "@/lib/supabase/client";
+import { BrandLogo } from "@/components/brand-logo";
 
 const destinations = [
   { href: "/dashboard", label: "Home", icon: House },
@@ -78,15 +79,7 @@ export default function CustomerNavigation() {
             aria-label="StewRun home"
             className="inline-flex min-h-12 shrink-0 items-center gap-3 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-clay-500"
           >
-            <span
-              aria-hidden="true"
-              className="flex size-10 items-center justify-center rounded-md bg-clay-500 font-display text-xl font-semibold text-white"
-            >
-              S
-            </span>
-            <span className="font-display text-xl font-semibold tracking-tight text-ink-900">
-              StewRun
-            </span>
+            <BrandLogo className="h-[42px] w-[150px]" />
           </Link>
 
           <nav

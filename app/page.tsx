@@ -9,6 +9,7 @@ import {
   MessageSquareText,
 } from "lucide-react";
 import PublicMarketplace from "@/components/public-marketplace";
+import { BrandLogo } from "@/components/brand-logo";
 
 const steps = [
   {
@@ -47,15 +48,7 @@ function Brand() {
       aria-label="StewRun home"
       className="inline-flex min-h-11 items-center gap-3 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-clay-500"
     >
-      <span
-        aria-hidden="true"
-        className="flex size-10 items-center justify-center rounded-md bg-clay-500 font-display text-xl font-semibold text-white"
-      >
-        S
-      </span>
-      <span className="font-display text-xl font-semibold tracking-tight text-ink-900">
-        StewRun
-      </span>
+      <BrandLogo className="h-[42px] w-[150px]" />
     </Link>
   );
 }
@@ -72,7 +65,7 @@ export default function HomePage() {
           >
             <Link
               href="#marketplace"
-              className="hidden min-h-11 items-center rounded-md px-3 text-sm font-semibold text-ink-900 hover:text-clay-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay-500 sm:inline-flex"
+              className="inline-flex min-h-11 items-center rounded-md px-2 text-sm font-semibold text-ink-900 hover:text-clay-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay-500 sm:px-3"
             >
               Browse meals
             </Link>
@@ -81,12 +74,6 @@ export default function HomePage() {
               className="inline-flex min-h-11 items-center rounded-md px-1.5 text-sm font-semibold text-ink-900 hover:text-clay-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay-500 sm:px-3"
             >
               Sign In
-            </Link>
-            <Link
-              href="/start"
-              className="inline-flex min-h-11 items-center justify-center rounded-md bg-clay-500 px-2 text-sm font-semibold text-white hover:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay-500 sm:px-4"
-            >
-              Plan a lunch
             </Link>
           </nav>
         </div>
@@ -118,22 +105,10 @@ export default function HomePage() {
             >
               I&apos;m a cook
             </Link>
-            <Link
-              href="#how-it-works"
-              className="inline-flex min-h-12 items-center justify-center rounded-md border border-ink-900/20 bg-white px-6 text-sm font-semibold text-ink-900 hover:bg-ink-900/[0.03] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay-500"
-            >
-              How It Works
-            </Link>
           </div>
           <p className="mt-4 text-sm leading-6 text-ink-900/65">
             Plan ahead for lunch and collect at a selected hub.
           </p>
-          <Link
-            href="#marketplace"
-            className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-md px-1 text-sm font-semibold text-clay-700 underline decoration-clay-500/40 underline-offset-4 hover:decoration-clay-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay-500"
-          >
-            Browse meals <ArrowRight aria-hidden="true" className="size-4" />
-          </Link>
         </div>
 
         <figure className="w-full">

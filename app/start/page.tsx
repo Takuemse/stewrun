@@ -8,10 +8,15 @@ import { ArrowLeft, ArrowRight, MapPin } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import CustomerNavigation from "@/components/customer-navigation";
+import { BrandLogo } from "@/components/brand-logo";
 import {
+  clearCustomerRequestDraft,
+  readCustomerRequestDraft,
   saveCustomerRequestDraft,
   type CustomerRequestDraft,
 } from "@/lib/customer-request-draft";
+import { clearParsedMealDraft, readParsedMealDraft, type ParsedMealDraft } from "@/lib/parsed-meal-draft";
 import { createClient } from "@/lib/supabase/client";
 
 const hubs: CustomerRequestDraft["pickupHub"][] = [
@@ -28,6 +33,7 @@ const wholeMeals = [
 ];
 
 const mealParts = ["Sadza", "Rice", "Beef", "Chicken", "Vegetables"];
+const SUBMISSION_STORAGE_KEY = "stewrun:meal-request-submission";
 
 function getHarareDateParts() {
   const parts = new Intl.DateTimeFormat("en-GB", {
@@ -74,11 +80,18 @@ export default function StartRequestPage() {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [hasSession, setHasSession] = useState(false);
+  const [sessionResolved, setSessionResolved] = useState(false);
+  const [parsedMeal, setParsedMeal] = useState<ParsedMealDraft | null>(null);
 
   useEffect(() => {
     let active = true;
     void supabase.auth.getSession().then(({ data }) => {
-      if (active) setHasSession(Boolean(data.session));
+      if (active) {
+        setHasSession(Boolean(data.session));
+        setSessionResolved(true);
+      }
+    }).catch(() => {
+      if (active) setSessionResolved(true);
     });
 
     return () => {
@@ -91,6 +104,24 @@ export default function StartRequestPage() {
     return () => window.clearTimeout(timeout);
   }, []);
 
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      const parsed = readParsedMealDraft();
+      if (!parsed) return;
+      const previousDraft = readCustomerRequestDraft();
+      setParsedMeal(parsed);
+      setDescription(parsed.description);
+      setQuantity(String(previousDraft?.description === parsed.description ? previousDraft.quantity : parsed.items[0]?.quantity ?? 1));
+      if (previousDraft?.description === parsed.description) {
+        setBudgetPerPlate(previousDraft.budgetPerPlate);
+        setPickupHub(previousDraft.pickupHub);
+        setPickupDate(previousDraft.pickupDate);
+        setPickupTime(previousDraft.pickupTime);
+      }
+    }, 0);
+    return () => window.clearTimeout(timeout);
+  }, []);
+
   function addMealText(value: string) {
     setDescription((current) => {
       const next = current.trim();
@@ -100,7 +131,7 @@ export default function StartRequestPage() {
     });
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
 
@@ -139,6 +170,47 @@ export default function StartRequestPage() {
 
     setSaving(true);
     saveCustomerRequestDraft(draft);
+    if (parsedMeal && parsedMeal.description === description.trim() && hasSession) {
+      try {
+        const payload = {
+          items: parsedMeal.items.map((item) => ({ name: item.name, quantity: parsedQuantity })),
+          budget: parsedBudget,
+          hub: pickupHub,
+          pickup_date: pickupDate,
+          pickup_time: pickupTime,
+        };
+        const fingerprint = JSON.stringify(payload);
+        let key: string | null = null;
+        try {
+          const stored: unknown = JSON.parse(window.sessionStorage.getItem(SUBMISSION_STORAGE_KEY) ?? "null");
+          if (typeof stored === "object" && stored !== null && "fingerprint" in stored && stored.fingerprint === fingerprint && "key" in stored && typeof stored.key === "string") key = stored.key;
+        } catch { /* Start a fresh idempotent attempt when storage is unavailable. */ }
+        key ??= crypto.randomUUID();
+        try { window.sessionStorage.setItem(SUBMISSION_STORAGE_KEY, JSON.stringify({ key, fingerprint })); } catch { /* The request can proceed without optional storage. */ }
+        const response = await fetch("/api/meal-requests", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": key,
+          },
+          body: JSON.stringify(payload),
+        });
+        const result: unknown = await response.json().catch(() => null);
+        if (!response.ok) {
+          const message = typeof result === "object" && result !== null && "error" in result && typeof result.error === "string"
+            ? result.error : "We could not send your request. Please try again.";
+          throw new Error(message);
+        }
+        clearParsedMealDraft();
+        clearCustomerRequestDraft();
+        try { window.sessionStorage.removeItem(SUBMISSION_STORAGE_KEY); } catch { /* Ignore optional storage cleanup errors. */ }
+        router.push("/my-requests");
+      } catch (submitError) {
+        setSaving(false);
+        setError(submitError instanceof Error ? submitError.message : "We could not send your request. Please try again.");
+      }
+      return;
+    }
     router.push(
       hasSession ? "/dashboard" : "/register?role=customer&next=/dashboard",
     );
@@ -146,24 +218,23 @@ export default function StartRequestPage() {
 
   return (
     <main className="min-h-screen bg-cream-50 text-ink-900">
-      <header className="border-b border-ink-900/10 bg-white">
+      {sessionResolved && hasSession ? <CustomerNavigation /> : <header className="border-b border-ink-900/10 bg-white">
         <div className="mx-auto flex min-h-16 max-w-5xl items-center justify-between gap-4 px-5 sm:px-8">
           <Link
             href="/"
             className="inline-flex min-h-11 items-center gap-3 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-clay-500"
           >
-            <span className="flex size-9 items-center justify-center rounded-md bg-clay-500 font-display text-lg font-semibold text-white">S</span>
-            <span className="font-display text-xl font-semibold">StewRun</span>
+            <BrandLogo className="h-[42px] w-[150px]" />
           </Link>
           <Link href="/login" className="min-h-11 inline-flex items-center px-2 text-sm font-semibold text-clay-700 underline-offset-4 hover:underline">
             Sign in
           </Link>
         </div>
-      </header>
+      </header>}
 
       <div className="mx-auto grid max-w-5xl items-start gap-8 px-5 py-7 sm:px-8 sm:py-10 lg:grid-cols-[minmax(0,1fr)_18rem]">
         <section>
-          <Link href="/" className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-ink-900/70 hover:text-clay-700">
+          <Link href={hasSession ? "/dashboard" : "/"} className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-ink-900/70 hover:text-clay-700">
             <ArrowLeft aria-hidden="true" className="size-4" />
             Back to StewRun
           </Link>
@@ -174,7 +245,7 @@ export default function StartRequestPage() {
             Start with where and when.
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-900/70 sm:text-base">
-            Choose a pickup hub and time, then tell local cooks what you would like.
+            {parsedMeal ? "Check the meal Ziva understood, then choose where and when to collect." : "Choose a pickup hub and time, then tell local cooks what you would like."}
             You can review the request before it is sent.
           </p>
 
@@ -222,8 +293,9 @@ export default function StartRequestPage() {
                   </button>
                 ))}
               </div>
+              {parsedMeal && parsedMeal.description === description.trim() && <ul className="mt-3 rounded-lg bg-cream-50 p-4 text-sm text-ink-900" aria-label="Meal understood by Ziva">{parsedMeal.items.map((item, index) => <li key={`${item.name}-${index}`}>{item.name}</li>)}</ul>}
               <label htmlFor="meal-description" className="sr-only">Describe your meal</label>
-              <textarea id="meal-description" value={description} onChange={(event) => setDescription(event.target.value)} maxLength={500} rows={3} placeholder="For example: Ndinoda sadza nenyama yemombe nemuriwo." className="mt-4 min-h-28 w-full rounded-lg border border-ink-900/20 bg-white px-4 py-3 text-base leading-6 text-ink-900 placeholder:text-ink-900/45 focus:border-clay-500 focus:outline-none focus:ring-2 focus:ring-clay-500/25" />
+              <textarea id="meal-description" value={description} onChange={(event) => { setDescription(event.target.value); if (event.target.value.trim() !== parsedMeal?.description) setParsedMeal(null); }} maxLength={500} rows={3} placeholder="For example: Ndinoda sadza nenyama yemombe nemuriwo." className="mt-4 min-h-28 w-full rounded-lg border border-ink-900/20 bg-white px-4 py-3 text-base leading-6 text-ink-900 placeholder:text-ink-900/45 focus:border-clay-500 focus:outline-none focus:ring-2 focus:ring-clay-500/25" />
             </fieldset>
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -245,10 +317,10 @@ export default function StartRequestPage() {
 
             <div>
               <Button type="submit" disabled={saving} className="min-h-12 w-full text-sm font-semibold sm:w-auto sm:min-w-64">
-                {saving ? "Saving your request…" : "Continue to your account"}
+                {saving ? (parsedMeal ? "Sending your request…" : "Saving your request…") : (parsedMeal ? "Send request to cooks" : "Continue to your account")}
                 {!saving && <ArrowRight aria-hidden="true" className="size-4" />}
               </Button>
-              <p className="mt-2 text-xs leading-5 text-ink-900/55">Your choices stay on this device while you create an account or sign in. The request is not sent until you review and submit it.</p>
+              <p className="mt-2 text-xs leading-5 text-ink-900/55">{parsedMeal ? "Cooks will see your meal after you send the request. You will compare their prices before choosing." : "Your choices stay on this device while you create an account or sign in. The request is not sent until you review and submit it."}</p>
             </div>
           </form>
         </section>

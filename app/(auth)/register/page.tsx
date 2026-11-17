@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
+import { BrandLogo } from '@/components/brand-logo'
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -91,12 +92,7 @@ export default function RegisterPage() {
             className="inline-flex items-center gap-3 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-clay-500"
             aria-label="StewRun home"
           >
-            <span className="flex size-11 items-center justify-center rounded-xl bg-clay-500 font-display text-xl font-semibold text-cream-50">
-              S
-            </span>
-            <span className="font-display text-2xl font-semibold tracking-tight text-ink-900">
-              StewRun
-            </span>
+            <BrandLogo className="h-[42px] w-[150px]" />
           </Link>
 
           <p className="mt-10 text-sm font-semibold uppercase tracking-[0.16em] text-sage-500">

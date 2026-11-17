@@ -5,6 +5,7 @@ import Link from "next/link";
 import { RefreshCw, UserRound } from "lucide-react";
 
 import AccountSignOut from "@/components/account-sign-out";
+import { BrandLogo } from "@/components/brand-logo";
 import NotificationBell from "@/components/notification-bell";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -161,9 +162,10 @@ export default function CookProfilePage() {
         <div className="mx-auto flex min-h-16 max-w-7xl flex-wrap items-center justify-between gap-3 px-5 py-3 sm:px-8">
           <Link
             href="/"
-            className="font-display text-xl font-semibold tracking-tight text-ink-900"
+            aria-label="StewRun home"
+            className="inline-flex items-center"
           >
-            StewRun
+            <BrandLogo className="h-[42px] w-[150px]" />
           </Link>
           <nav
             aria-label="Cook workspace"

@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { MapPin, RefreshCw, Star, Utensils } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
@@ -145,12 +144,6 @@ export default function PublicMarketplace() {
               can still describe a different meal and propose your own budget.
             </p>
           </div>
-          <Link
-            href="/dashboard"
-            className="inline-flex min-h-11 w-fit items-center justify-center rounded-md border border-ink-900/15 px-4 text-sm font-semibold text-ink-900 hover:bg-cream-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay-500"
-          >
-            Request a meal
-          </Link>
         </div>
 
         {loading && (

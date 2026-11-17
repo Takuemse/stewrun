@@ -637,11 +637,10 @@ export default function MyRequestsPage() {
             <Button type="button" variant="secondary" onClick={() => void loadRequests()} disabled={loading} className="min-h-11 self-start sm:self-auto">
               {loading ? "Refreshing..." : "Refresh"}
             </Button>
-            <Link href="/start" className="inline-flex min-h-11 items-center justify-center rounded-md bg-clay-500 px-4 text-sm font-semibold text-white hover:brightness-95">+ New request</Link>
           </div>
         </div>
 
-        {!loading && !error && (
+        {!loading && !error && !(!ordersLoading && requests.length === 0 && orders.length === 0) && (
           <div className="mt-8 inline-flex rounded-lg border border-ink-900/10 bg-white p-1" role="group" aria-label="Lunch history">
             {(["active", "past"] as const).map((value) => (
               <button key={value} type="button" aria-pressed={tab === value} onClick={() => setTab(value)} className={`min-h-10 rounded-md px-4 text-sm font-semibold capitalize ${tab === value ? "bg-ink-900 text-white" : "text-ink-900/65 hover:bg-cream-50"}`}>
@@ -730,7 +729,7 @@ export default function MyRequestsPage() {
           </Card>
         )}
 
-        {!loading && !error && (
+        {!loading && !error && !(!ordersLoading && requests.length === 0 && orders.length === 0) && (
           <div className="mt-6 space-y-5">
             {visibleOrders.map((order) => <LunchOrderCard key={order.id} order={order} />)}
             {visibleRequests.map((request) => <RequestCard key={request.id} request={request} />)}
@@ -738,7 +737,6 @@ export default function MyRequestsPage() {
               <Card className="border border-dashed border-ink-900/15 p-8 text-center shadow-none">
                 <h2 className="font-display text-xl font-semibold">{tab === "active" ? "Nothing needs you right now" : "No past meals yet"}</h2>
                 <p className="mt-2 text-sm text-ink-900/65">{tab === "active" ? "Start a request and compare offers from local cooks." : "Completed meals and older requests will appear here."}</p>
-                {tab === "active" && <Link href="/start" className="mt-4 inline-flex min-h-11 items-center rounded-md bg-clay-500 px-4 text-sm font-semibold text-white">Plan a lunch</Link>}
               </Card>
             )}
           </div>

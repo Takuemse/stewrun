@@ -18,6 +18,7 @@ import {
 import Link from "next/link";
 
 import AccountSignOut from "@/components/account-sign-out";
+import { BrandLogo } from "@/components/brand-logo";
 import NotificationBell from "@/components/notification-bell";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -462,9 +463,10 @@ export default function CookOrdersPage() {
         <div className="mx-auto flex min-h-16 max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-8">
           <Link
             href="/"
-            className="font-display text-xl font-semibold tracking-tight text-ink-900 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-clay-500"
+            aria-label="StewRun home"
+            className="inline-flex items-center focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-clay-500"
           >
-            StewRun
+            <BrandLogo className="h-[42px] w-[150px]" />
           </Link>
 
           <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-4">
