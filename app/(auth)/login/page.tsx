@@ -1,6 +1,13 @@
 'use client'
 
-import { useState, type FormEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -8,14 +15,196 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
 
+type SessionRoleResponse =
+  | { role: 'customer' }
+  | { role: 'cook' }
+  | {
+      role: 'administrator'
+      currentLevel: string | null
+      hasVerifiedTotp: boolean
+    }
+
+function isSessionRoleResponse(
+  value: unknown,
+): value is SessionRoleResponse {
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    Array.isArray(value)
+  ) {
+    return false
+  }
+
+  const response = value as Record<string, unknown>
+
+  if (response.role === 'customer' || response.role === 'cook') {
+    return true
+  }
+
+  return (
+    response.role === 'administrator' &&
+    (response.currentLevel === null ||
+      typeof response.currentLevel === 'string') &&
+    typeof response.hasVerifiedTotp === 'boolean'
+  )
+}
+
 export default function LoginPage() {
   const router = useRouter()
+  const supabase = useMemo(() => createClient(), [])
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [signedIn, setSignedIn] = useState(false)
   const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
+  const redirectTimer = useRef<number | null>(null)
+
+  const clearSignedOutState = useCallback(() => {
+    if (redirectTimer.current !== null) {
+      window.clearTimeout(redirectTimer.current)
+      redirectTimer.current = null
+    }
+
+    setSignedIn(false)
+    setSuccess(false)
+    setLoading(false)
+    setError(null)
+    setPassword('')
+    setShowPassword(false)
+  }, [])
+
+  const completeSignIn = useCallback((destination: '/' | '/dashboard' | '/cook' = '/') => {
+    setSignedIn(true)
+    setSuccess(true)
+    setPassword('')
+
+    if (redirectTimer.current !== null) {
+      window.clearTimeout(redirectTimer.current)
+    }
+
+    redirectTimer.current = window.setTimeout(() => {
+      router.replace(destination)
+      router.refresh()
+    }, 700)
+  }, [router])
+
+  const continueAuthenticatedSession = useCallback(async () => {
+    try {
+      const response = await fetch('/api/auth/session', {
+        cache: 'no-store',
+      })
+
+      const result: unknown = await response.json()
+
+      if (!response.ok) {
+        const message =
+          typeof result === 'object' &&
+          result !== null &&
+          !Array.isArray(result) &&
+          'error' in result &&
+          typeof result.error === 'string'
+            ? result.error
+            : 'We could not verify your account. Please retry.'
+        setError(message)
+        setLoading(false)
+        return
+      }
+
+      if (!isSessionRoleResponse(result)) {
+        setError('We could not verify your account. Please retry.')
+        setLoading(false)
+        return
+      }
+
+      if (result.role === 'customer') {
+        completeSignIn('/dashboard')
+        return
+      }
+
+      if (result.role === 'cook') {
+        completeSignIn('/cook')
+        return
+      }
+
+      if (!result.hasVerifiedTotp || result.currentLevel !== 'aal2') {
+        router.replace('/admin/mfa')
+        router.refresh()
+        return
+      }
+
+      completeSignIn()
+    } catch {
+      setError('We could not verify your account. Please retry.')
+      setLoading(false)
+    }
+  }, [completeSignIn, router])
+
+  useEffect(() => {
+    let active = true
+    let authRevision = 0
+    let verificationTimer: number | null = null
+
+    async function verifySession(revision: number) {
+      try {
+        const { data, error: sessionError } = await supabase.auth.getUser()
+
+        if (!active || revision !== authRevision) {
+          return
+        }
+
+        if (sessionError || !data.user) {
+          clearSignedOutState()
+          return
+        }
+
+        await continueAuthenticatedSession()
+      } catch {
+        if (active && revision === authRevision) {
+          clearSignedOutState()
+        }
+      }
+    }
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      authRevision += 1
+      const revision = authRevision
+
+      if (event === 'SIGNED_OUT') {
+        clearSignedOutState()
+        return
+      }
+
+      if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
+        if (verificationTimer !== null) {
+          window.clearTimeout(verificationTimer)
+        }
+
+        verificationTimer = window.setTimeout(() => {
+          void verifySession(revision)
+        }, 0)
+      }
+    })
+
+    void verifySession(authRevision)
+
+    return () => {
+      active = false
+      subscription.unsubscribe()
+
+      if (verificationTimer !== null) {
+        window.clearTimeout(verificationTimer)
+      }
+
+      if (redirectTimer.current !== null) {
+        window.clearTimeout(redirectTimer.current)
+        redirectTimer.current = null
+      }
+    }
+  }, [clearSignedOutState, continueAuthenticatedSession, supabase])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -24,8 +213,7 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const supabase = createClient()
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
       })
@@ -35,11 +223,12 @@ export default function LoginPage() {
         return
       }
 
-      setSuccess(true)
-      window.setTimeout(() => {
-        router.replace('/')
-        router.refresh()
-      }, 700)
+      if (!data.session || !data.user) {
+        setError('We could not verify your sign-in. Please try again.')
+        return
+      }
+
+      await continueAuthenticatedSession()
     } catch {
       setError('We could not connect right now. Please try again.')
     } finally {
@@ -65,14 +254,14 @@ export default function LoginPage() {
           </Link>
 
           <p className="mt-10 text-sm font-semibold uppercase tracking-[0.16em] text-sage-500">
-            Home-cooked, right on time
+            A pre-order lunch marketplace for Harare
           </p>
           <h1 className="mt-3 max-w-md font-display text-4xl leading-tight tracking-tight text-ink-900 sm:text-5xl">
-            Lunch worth looking forward to.
+            Your next lunch starts here.
           </h1>
           <p className="mt-5 max-w-md text-base leading-7 text-ink-900/70">
-            Order a home-cooked meal for pickup at a Harare hub. Sign in to
-            continue.
+            Tell Ziva what you would like, compare offers from home cooks and
+            small caterers, then collect your scheduled meal at a Harare hub.
           </p>
         </section>
 
@@ -82,7 +271,7 @@ export default function LoginPage() {
               Welcome back
             </h2>
             <p className="mt-2 text-sm leading-6 text-ink-900/65">
-              Sign in to pick up where you left off.
+              Customer and administrator accounts use this sign-in.
             </p>
           </div>
 
@@ -141,7 +330,7 @@ export default function LoginPage() {
                 {error}
               </p>
             )}
-            {success && (
+            {signedIn && success && (
               <p
                 role="status"
                 className="rounded-lg border border-sage-500/30 bg-sage-500/10 px-4 py-3 text-sm leading-5 text-ink-900"
@@ -152,11 +341,15 @@ export default function LoginPage() {
 
             <Button
               type="submit"
-              className="min-h-12 w-full rounded-lg text-base font-semibold disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={loading || success}
+              className="min-h-12 w-full rounded-md text-base font-semibold disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={loading || (signedIn && success)}
               aria-busy={loading}
             >
-              {loading ? 'Signing in…' : success ? 'Signed in' : 'Sign in'}
+              {loading
+                ? 'Signing in…'
+                : signedIn && success
+                  ? 'Signed in'
+                  : 'Sign in'}
             </Button>
           </form>
 
