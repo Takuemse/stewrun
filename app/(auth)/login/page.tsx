@@ -14,7 +14,8 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
-import { BrandLogo } from '@/components/brand-logo'
+import AuthShell, { TimeGreeting } from '@/components/auth-shell'
+import { ArrowRight, Lock, Mail } from 'lucide-react'
 
 type SessionRoleResponse =
   | { role: 'customer' }
@@ -238,56 +239,53 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-cream-50 px-5 py-10 sm:px-8">
-      <div className="grid w-full max-w-5xl items-center gap-10 lg:grid-cols-[1fr_0.9fr] lg:gap-16">
-        <section className="mx-auto w-full max-w-lg lg:mx-0">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-3 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-clay-500"
-            aria-label="StewRun home"
-          >
-            <BrandLogo className="h-[42px] w-[150px]" />
-          </Link>
+   <AuthShell mode="login">
 
-          <p className="mt-10 text-sm font-semibold uppercase tracking-[0.16em] text-sage-500">
-            A pre-order lunch marketplace for Harare
-          </p>
-          <h1 className="mt-3 max-w-md font-display text-4xl leading-tight tracking-tight text-ink-900 sm:text-5xl">
-            Your next lunch starts here.
-          </h1>
-          <p className="mt-5 max-w-md text-base leading-7 text-ink-900/70">
-            Tell Ziva what you would like, compare offers from home cooks and
-            small caterers, then collect your scheduled meal at a Harare hub.
-          </p>
-        </section>
+        <Card className="w-full max-w-md border border-ink-900/8 p-6 shadow-[0_12px_40px_rgba(31,27,22,0.06)] sm:p-8">
 
-        <Card className="mx-auto w-full max-w-md border border-ink-900/8 p-6 shadow-[0_12px_40px_rgba(31,27,22,0.06)] sm:p-8">
-          <div className="mb-7">
-            <h2 className="font-display text-3xl tracking-tight text-ink-900">
-              Welcome back
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-ink-900/65">
-              Customer and administrator accounts use this sign-in.
-            </p>
-          </div>
+        <div className="mb-7">
+        <TimeGreeting />
+        <h2 className="font-display text-3xl tracking-tight text-ink-900">
+               Welcome back
+        </h2>
+        <p className="mt-2 text-sm leading-6 text-ink-900/65">
+              Sign in to pick up where your lunch plans left off.
+        </p>
+        </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
               <label htmlFor="email" className="block text-sm font-medium text-ink-900">
                 Email address
               </label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                inputMode="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                required
-                className="min-h-12 rounded-lg border-ink-900/20 px-4"
-              />
+           <div className="relative">
+  <Mail
+    aria-hidden="true"
+    style={{
+      position: 'absolute',
+      left: 16,
+      top: '50%',
+      width: 20,
+      height: 20,
+      transform: 'translateY(-50%)',
+      opacity: 0.6,
+      pointerEvents: 'none',
+    }}
+    />
+    <Input
+    id="email"
+    name="email"
+    type="email"
+    autoComplete="email"
+    inputMode="email"
+    placeholder="you@example.com"
+    value={email}
+    onChange={(event) => setEmail(event.target.value)}
+       required
+        className="min-h-12 rounded-lg border-ink-900/20 px-4"
+              style={{ paddingLeft: 46, minHeight: 54, borderRadius: 14 }}
+          />
+           </div>
             </div>
 
             <div className="space-y-2">
@@ -295,6 +293,19 @@ export default function LoginPage() {
                 Password
               </label>
               <div className="relative">
+              <Lock
+                aria-hidden="true"
+                style={{
+                position: 'absolute',
+                left: 16,
+                top: '50%',
+                width: 20,
+                height: 20,
+                transform: 'translateY(-50%)',
+                opacity: 0.6,
+                pointerEvents: 'none',
+                }}
+                />
                 <Input
                   id="password"
                   name="password"
@@ -305,6 +316,7 @@ export default function LoginPage() {
                   onChange={(event) => setPassword(event.target.value)}
                   required
                   className="min-h-12 rounded-lg border-ink-900/20 px-4 pr-20"
+                  style={{ paddingLeft: 46, paddingRight: 76, minHeight: 54, borderRadius: 14 }}
                 />
                 <button
                   type="button"
@@ -335,18 +347,31 @@ export default function LoginPage() {
               </p>
             )}
 
-            <Button
-              type="submit"
-              className="min-h-12 w-full rounded-md text-base font-semibold disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={loading || (signedIn && success)}
-              aria-busy={loading}
-            >
-              {loading
-                ? 'Signing in…'
-                : signedIn && success
-                  ? 'Signed in'
-                  : 'Sign in'}
-            </Button>
+    <Button
+  type="submit"
+  className="font-semibold disabled:cursor-not-allowed disabled:opacity-60"
+  style={{
+    display: 'flex',
+    width: '100%',
+    minHeight: 56,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    borderRadius: 999,
+    fontSize: 16,
+  }}
+  disabled={loading || (signedIn && success)}
+  aria-busy={loading}
+>
+  {loading
+    ? 'Signing in…'
+    : signedIn && success
+      ? 'Signed in'
+      : 'Sign in'}
+  {!loading && !(signedIn && success) && (
+    <ArrowRight aria-hidden="true" style={{ width: 18, height: 18 }} />
+  )}
+</Button>
           </form>
 
           <p className="mt-6 text-center text-sm text-ink-900/70">
@@ -359,7 +384,6 @@ export default function LoginPage() {
             </Link>
           </p>
         </Card>
-      </div>
-    </main>
+      </AuthShell>
   )
 }

@@ -8,6 +8,7 @@ import {
 
 import { readRequestBody } from "@/lib/request-body";
 import { validateCookOffer } from "@/lib/validate-cook-offer";
+import { validateStandardCookOffer } from "@/lib/validate-standard-cook-offer";
 
 const MAX_REQUEST_BODY_BYTES = 32_768;
 
@@ -151,6 +152,9 @@ function getDatabaseErrorResponse(error: DatabaseError) {
     message.includes("custom meals") ||
     message.includes("offer total") ||
     message.includes("requested plate quantity") ||
+    message.includes("requested meal") ||
+    message.includes("offer line") ||
+    message.includes("complete plate") ||
     message.includes("menu item")
   ) {
     return {
@@ -240,7 +244,12 @@ export async function POST(request: Request) {
   }
 
   // 5. Validate and normalize the offer.
-  const validation = validateCookOffer(body);
+  const isAlternative =
+    typeof body === "object" && body !== null &&
+    (body as Record<string, unknown>).is_alternative === true;
+  const validation = isAlternative
+    ? validateCookOffer(body)
+    : validateStandardCookOffer(body);
 
   if (!validation.ok) {
     return NextResponse.json(
@@ -288,7 +297,9 @@ export async function POST(request: Request) {
   // The database function handles ownership, request status,
   // deadline checks, menu-item verification and total calculation.
   const { data: offer, error: submissionError } = await supabase.rpc(
-    "create_and_submit_cook_offer",
+    validation.value.is_alternative
+      ? "create_and_submit_cook_offer"
+      : "create_and_submit_standard_cook_offer",
     {
       p_request_id: validation.value.request_id,
       p_message: validation.value.is_alternative

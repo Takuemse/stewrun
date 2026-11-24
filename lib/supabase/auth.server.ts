@@ -52,7 +52,8 @@ export async function getAuthenticatedUser(): Promise<AuthResult> {
 
   if (authError) {
     console.error("Authentication lookup failed:", {
-      message: authError.message,
+      name: authError.name,
+      message: authError.message || "Supabase authentication lookup failed without a message.",
       status: authError.status,
     });
 

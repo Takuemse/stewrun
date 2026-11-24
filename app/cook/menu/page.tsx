@@ -1,15 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import Link from "next/link";
-import { RefreshCw, Utensils } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 
-import AccountSignOut from "@/components/account-sign-out";
-import { BrandLogo } from "@/components/brand-logo";
-import NotificationBell from "@/components/notification-bell";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import CookMenuFrame from "@/components/cook-menu-frame";
+import OfferingImage from "@/components/cook-meal-image";
 
 type Offering = {
   id: string;
@@ -95,6 +90,7 @@ export default function CookMenuPage() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -208,6 +204,7 @@ export default function CookMenuPage() {
       setOfferings((current) =>
         current.map((item) => (item.id === updated.id ? updated : item)),
       );
+      setEditingId(null);
       setSuccess(
         updated.available
           ? "Offering updated and published."
@@ -233,277 +230,282 @@ export default function CookMenuPage() {
     setSuccess("");
   }
 
-  return (
-    <main className="min-h-screen bg-cream-50">
-      <header className="border-b border-ink-900/10 bg-white">
-        <div className="mx-auto flex min-h-16 max-w-7xl flex-wrap items-center justify-between gap-3 px-5 py-3 sm:px-8">
-          <Link
-            href="/"
-            aria-label="StewRun home"
-            className="inline-flex items-center"
-          >
-            <BrandLogo className="h-[42px] w-[150px]" />
-          </Link>
-          <nav
-            aria-label="Cook workspace"
-            className="flex flex-wrap items-center justify-end gap-2 sm:gap-3"
-          >
-            <Link
-              href="/cook"
-              className="inline-flex min-h-10 items-center rounded-md px-3 text-sm font-medium text-ink-900/70 hover:bg-cream-50"
-            >
-              Requests
-            </Link>
-            <Link
-              href="/cook/orders"
-              className="inline-flex min-h-10 items-center rounded-md px-3 text-sm font-medium text-ink-900/70 hover:bg-cream-50"
-            >
-              Orders
-            </Link>
-            <Link
-              href="/cook/menu"
-              aria-current="page"
-              className="inline-flex min-h-10 items-center rounded-md border border-ink-900/10 px-3 text-sm font-semibold text-ink-900"
-            >
-              Menu
-            </Link>
-            <Link
-              href="/cook/profile"
-              className="inline-flex min-h-10 items-center rounded-md px-3 text-sm font-medium text-ink-900/70 hover:bg-cream-50"
-            >
-              Profile
-            </Link>
-            <NotificationBell />
-            <AccountSignOut />
-          </nav>
-        </div>
-      </header>
+  function handleCancelEdit() {
+    // Reload so any unsaved changes are discarded.
+    setEditingId(null);
+    void loadOfferings();
+  }
 
-      <section className="mx-auto max-w-5xl px-5 py-8 sm:px-8 sm:py-10">
-        <div className="flex flex-col justify-between gap-4 border-b border-ink-900/10 pb-6 sm:flex-row sm:items-end">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-clay-500">
-              Cook workspace
-            </p>
-            <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-ink-900">
-              Your offerings
-            </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-900/65">
-              Publish meals customers can browse, or keep offerings as drafts
-              while you prepare them.
-            </p>
-          </div>
-          <Button
-            variant="secondary"
+  const busy = savingId !== null || creating || loading;
+
+  return (
+    <CookMenuFrame>
+      {error && (
+        <div className="mn-alert err" role="alert">
+          <p style={{ margin: 0 }}>{error}</p>
+          <button
+            type="button"
+            className="mn-btn mn-ghost"
+            style={{ marginTop: 10 }}
             onClick={() => {
               setLoading(true);
               setError("");
               void loadOfferings();
             }}
-            disabled={loading || creating || savingId !== null}
-            className="w-full shrink-0 sm:w-auto"
           >
-            <RefreshCw aria-hidden="true" className="mr-2 size-4" />
+            <RefreshCw aria-hidden="true" size={16} />
+            Retry
+          </button>
+        </div>
+      )}
+
+      {success && (
+        <p className="mn-alert ok" role="status" style={{ marginBottom: 0 }}>
+          {success}
+        </p>
+      )}
+
+      <section className="mn-card" aria-labelledby="add-offering-heading">
+        <div className="mn-headrow">
+          <div>
+            <h2 id="add-offering-heading" className="font-display">
+              Add an offering
+            </h2>
+            <p className="mn-note">Let customers know what you are preparing.</p>
+          </div>
+          <button
+            type="button"
+            className="mn-btn mn-ghost"
+            onClick={() => {
+              setLoading(true);
+              setError("");
+              void loadOfferings();
+            }}
+            disabled={busy}
+          >
+            <RefreshCw aria-hidden="true" size={16} />
             {loading ? "Refreshing..." : "Refresh"}
-          </Button>
+          </button>
         </div>
 
-        {error && (
-          <div className="mt-5 rounded-md border border-red-700/20 bg-red-50 p-4 text-sm text-red-800" role="alert">
-            <p>{error}</p>
-            <button
-              type="button"
-              onClick={() => {
-                setLoading(true);
-                setError("");
-                void loadOfferings();
-              }}
-              className="mt-2 inline-flex min-h-9 items-center gap-2 rounded-md border border-red-700/20 px-3 font-semibold hover:bg-white"
-            >
-              <RefreshCw aria-hidden="true" className="size-4" />
-              Retry
-            </button>
+        <form onSubmit={handleCreate}>
+          <div className="mn-formgrid">
+            <OfferingImage name={draft.name} description={draft.description ?? ""} className="lg" hideIfNone />
+            <div className="mn-fields">
+              <label className="mn-field">
+                Meal name
+                <input
+                  className="mn-in"
+                  value={draft.name}
+                  onChange={(event) =>
+                    setDraft((current) => ({ ...current, name: event.target.value }))
+                  }
+                  minLength={2}
+                  maxLength={150}
+                  placeholder="e.g. Sadza with beef"
+                  required
+                />
+              </label>
+              <label className="mn-field">
+                Price (USD)
+                <input
+                  className="mn-in"
+                  type="number"
+                  min="0.01"
+                  max="99999999.99"
+                  step="0.01"
+                  value={draft.price || ""}
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      price: event.target.value === "" ? 0 : Number(event.target.value),
+                    }))
+                  }
+                  placeholder="e.g. 3.00"
+                  required
+                />
+              </label>
+              <label className="mn-field mn-span">
+                Description
+                <textarea
+                  className="mn-ta"
+                  value={draft.description ?? ""}
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      description: event.target.value,
+                    }))
+                  }
+                  maxLength={500}
+                  rows={3}
+                  placeholder="Describe your meal and what is included."
+                />
+              </label>
+              <label className="mn-check mn-span">
+                <input
+                  type="checkbox"
+                  checked={draft.available}
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      available: event.target.checked,
+                    }))
+                  }
+                />
+                Publish this offering for customers to browse
+              </label>
+              <div className="mn-span">
+                <button
+                  type="submit"
+                  className="mn-btn mn-full"
+                  disabled={creating || loading}
+                >
+                  {creating ? "Saving..." : "Save offering"}
+                </button>
+              </div>
+            </div>
           </div>
-        )}
+        </form>
+        <p className="mn-note" style={{ marginTop: 14 }}>
+          The photo is chosen from the meal name. It is an illustration, not a photo of your dish.
+        </p>
+      </section>
 
-        {success && (
-          <p
-            className="mt-5 rounded-md border border-sage-500/30 bg-sage-500/10 p-4 text-sm text-sage-700"
-            role="status"
-          >
-            {success}
+      <section className="mn-card" aria-labelledby="saved-offerings-heading">
+        <div className="mn-headrow">
+          <div>
+            <h2 id="saved-offerings-heading" className="font-display">
+              Saved offerings
+            </h2>
+            <p className="mn-note">Manage your published meals and drafts.</p>
+          </div>
+          {!loading && (
+            <span className="mn-count">
+              {offerings.length} {offerings.length === 1 ? "offering" : "offerings"}
+            </span>
+          )}
+        </div>
+
+        {loading && (
+          <p className="mn-note" role="status" style={{ marginTop: 18 }}>
+            Loading your offerings...
           </p>
         )}
 
-        <Card className="mt-6 border border-ink-900/10 p-4 shadow-none sm:p-6">
-          <h2 className="font-display text-xl font-semibold text-ink-900">
-            Add an offering
-          </h2>
-          <form onSubmit={handleCreate} className="mt-4 grid gap-4 sm:grid-cols-2">
-            <label className="space-y-2 text-sm font-medium text-ink-900">
-              Meal name
-              <Input
-                value={draft.name}
-                onChange={(event) =>
-                  setDraft((current) => ({ ...current, name: event.target.value }))
-                }
-                minLength={2}
-                maxLength={150}
-                required
-                className="min-h-11 rounded-md"
-              />
-            </label>
-            <label className="space-y-2 text-sm font-medium text-ink-900">
-              Price (USD)
-              <Input
-                type="number"
-                min="0.01"
-                max="99999999.99"
-                step="0.01"
-                value={draft.price || ""}
-                onChange={(event) =>
-                  setDraft((current) => ({
-                    ...current,
-                    price: event.target.value === "" ? 0 : Number(event.target.value),
-                  }))
-                }
-                required
-                className="min-h-11 rounded-md"
-              />
-            </label>
-            <label className="space-y-2 text-sm font-medium text-ink-900 sm:col-span-2">
-              Description
-              <textarea
-                value={draft.description ?? ""}
-                onChange={(event) =>
-                  setDraft((current) => ({
-                    ...current,
-                    description: event.target.value,
-                  }))
-                }
-                maxLength={500}
-                rows={3}
-                className="w-full rounded-md border border-ink-900/20 bg-white px-3 py-2 text-sm text-ink-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay-500"
-              />
-            </label>
-            <label className="flex min-h-11 items-center gap-2 text-sm text-ink-900 sm:col-span-2">
-              <input
-                type="checkbox"
-                checked={draft.available}
-                onChange={(event) =>
-                  setDraft((current) => ({
-                    ...current,
-                    available: event.target.checked,
-                  }))
-                }
-                className="size-4 accent-clay-500"
-              />
-              Publish this offering for customers to browse
-            </label>
-            <div className="sm:col-span-2">
-              <Button
-                type="submit"
-                disabled={creating || loading}
-                className="w-full rounded-md sm:w-auto"
-              >
-                {creating ? "Saving..." : "Save offering"}
-              </Button>
-            </div>
-          </form>
-        </Card>
-
-        <div className="mt-8">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="font-display text-xl font-semibold text-ink-900">
-              Saved offerings
-            </h2>
-            {!loading && (
-              <span className="text-xs text-ink-900/55">
-                {offerings.length} {offerings.length === 1 ? "offering" : "offerings"}
-              </span>
-            )}
-          </div>
-
-          {loading && (
-            <p className="mt-4 flex items-center gap-2 text-sm text-ink-900/60" role="status">
-              <RefreshCw aria-hidden="true" className="size-4 animate-spin" />
-              Loading your offerings...
+        {!loading && offerings.length === 0 && !error && (
+          <div className="mn-empty">
+            <h3 className="font-display" style={{ margin: 0, fontSize: 22 }}>
+              Add your first offering
+            </h3>
+            <p>
+              You have not saved any offerings yet. Use the form above to add a meal
+              customers can browse.
             </p>
-          )}
+          </div>
+        )}
 
-          {!loading && offerings.length === 0 && !error && (
-            <Card className="mt-4 border border-dashed border-ink-900/15 bg-white text-sm text-ink-900/65 shadow-none">
-              You have not saved any offerings yet.
-            </Card>
-          )}
+        <ul className="mn-list">
+          {offerings.map((offering) => {
+            const editing = editingId === offering.id;
 
-          <ul className="mt-4 space-y-3">
-            {offerings.map((offering) => (
-              <li key={offering.id}>
-                <Card className="border border-ink-900/10 p-4 shadow-none sm:p-5">
-                  <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <Utensils aria-hidden="true" className="size-4 text-clay-500" />
-                      <h3 className="text-sm font-semibold text-ink-900">
-                        {formatPrice(offering.price)}
-                      </h3>
+            return (
+              <li key={offering.id} className={editing ? "mn-row editing" : "mn-row"}>
+                <OfferingImage name={offering.name} description={offering.description ?? ""} className="sm" />
+
+                {!editing ? (
+                  <>
+                    <div className="mn-rbody">
+                      <div className="mn-nameline">
+                        <h3 className="font-display">{offering.name}</h3>
+                        <span className={offering.available ? "mn-pill pub" : "mn-pill draft"}>
+                          {offering.available ? "Published" : "Draft"}
+                        </span>
+                      </div>
+                      <p className="mn-price font-display">{formatPrice(offering.price)}</p>
+                      {offering.description && (
+                        <p className="mn-desc">{offering.description}</p>
+                      )}
                     </div>
-                    <span
-                      className={`rounded-md px-2.5 py-1 text-xs font-semibold ${
-                        offering.available
-                          ? "bg-sage-500/10 text-sage-700"
-                          : "bg-ink-900/5 text-ink-900/60"
-                      }`}
-                    >
-                      {offering.available ? "Published" : "Draft"}
-                    </span>
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <label className="space-y-1.5 text-xs font-semibold text-ink-900/70">
-                      Meal name
-                      <Input
-                        value={offering.name}
-                        onChange={(event) =>
-                          updateOffering(offering.id, { name: event.target.value })
+                    <div className="mn-actions">
+                      <button
+                        type="button"
+                        className="mn-btn mn-ghost"
+                        onClick={() => setEditingId(offering.id)}
+                        disabled={busy}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        className="mn-btn mn-ghost"
+                        onClick={() =>
+                          void handleSave({ ...offering, available: !offering.available })
                         }
-                        maxLength={150}
-                        className="min-h-10 rounded-md text-sm"
-                      />
-                    </label>
-                    <label className="space-y-1.5 text-xs font-semibold text-ink-900/70">
-                      Price (USD)
-                      <Input
-                        type="number"
-                        min="0.01"
-                        max="99999999.99"
-                        step="0.01"
-                        value={offering.price}
-                        onChange={(event) =>
-                          updateOffering(offering.id, {
-                            price:
-                              event.target.value === ""
-                                ? 0
-                                : Number(event.target.value),
-                          })
-                        }
-                        className="min-h-10 rounded-md text-sm"
-                      />
-                    </label>
-                    <label className="space-y-1.5 text-xs font-semibold text-ink-900/70 sm:col-span-2">
-                      Description
-                      <textarea
-                        value={offering.description ?? ""}
-                        onChange={(event) =>
-                          updateOffering(offering.id, {
-                            description: event.target.value,
-                          })
-                        }
-                        maxLength={500}
-                        rows={2}
-                        className="w-full rounded-md border border-ink-900/20 bg-white px-3 py-2 text-sm font-normal text-ink-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay-500"
-                      />
-                    </label>
-                    <label className="flex min-h-10 items-center gap-2 text-sm text-ink-900 sm:col-span-2">
+                        disabled={busy}
+                      >
+                        {savingId === offering.id
+                          ? "Saving..."
+                          : offering.available
+                            ? "Unpublish"
+                            : "Publish"}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="mn-rbody" style={{ minWidth: 0 }}>
+                    <div className="mn-nameline">
+                      <span className="mn-eyebrow" style={{ margin: 0 }}>Editing</span>
+                      <span className={offering.available ? "mn-pill pub" : "mn-pill draft"}>
+                        {offering.available ? "Published" : "Draft"}
+                      </span>
+                    </div>
+                    <div className="mn-editgrid" style={{ marginTop: 12 }}>
+                      <label className="mn-field">
+                        Meal name
+                        <input
+                          className="mn-in"
+                          value={offering.name}
+                          onChange={(event) =>
+                            updateOffering(offering.id, { name: event.target.value })
+                          }
+                          maxLength={150}
+                        />
+                      </label>
+                      <label className="mn-field">
+                        Price (USD)
+                        <input
+                          className="mn-in"
+                          type="number"
+                          min="0.01"
+                          max="99999999.99"
+                          step="0.01"
+                          value={offering.price}
+                          onChange={(event) =>
+                            updateOffering(offering.id, {
+                              price:
+                                event.target.value === ""
+                                  ? 0
+                                  : Number(event.target.value),
+                            })
+                          }
+                        />
+                      </label>
+                      <label className="mn-field" style={{ gridColumn: "1 / -1" }}>
+                        Description
+                        <textarea
+                          className="mn-ta"
+                          value={offering.description ?? ""}
+                          onChange={(event) =>
+                            updateOffering(offering.id, {
+                              description: event.target.value,
+                            })
+                          }
+                          maxLength={500}
+                          rows={2}
+                        />
+                      </label>
+                    </div>
+                    <label className="mn-check">
                       <input
                         type="checkbox"
                         checked={offering.available}
@@ -512,27 +514,34 @@ export default function CookMenuPage() {
                             available: event.target.checked,
                           })
                         }
-                        className="size-4 accent-clay-500"
                       />
                       Published for customers
                     </label>
+                    <div className="mn-saverow">
+                      <button
+                        type="button"
+                        className="mn-btn mn-ghost"
+                        onClick={handleCancelEdit}
+                        disabled={savingId !== null}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        className="mn-btn"
+                        disabled={busy}
+                        onClick={() => void handleSave(offering)}
+                      >
+                        {savingId === offering.id ? "Saving..." : "Save changes"}
+                      </button>
+                    </div>
                   </div>
-                  <div className="mt-4 flex justify-end">
-                    <Button
-                      type="button"
-                      disabled={savingId !== null || creating || loading}
-                      onClick={() => void handleSave(offering)}
-                      className="w-full rounded-md sm:w-auto"
-                    >
-                      {savingId === offering.id ? "Saving..." : "Save changes"}
-                    </Button>
-                  </div>
-                </Card>
+                )}
               </li>
-            ))}
-          </ul>
-        </div>
+            );
+          })}
+        </ul>
       </section>
-    </main>
+    </CookMenuFrame>
   );
 }

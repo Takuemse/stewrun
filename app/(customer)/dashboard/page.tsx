@@ -1,363 +1,94 @@
-
 "use client";
 
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
 } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Card } from "@/components/ui/card";
+import { ArrowRight, Utensils } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import {
-  ExternalLink,
-  MapPin,
-  Search,
-} from "lucide-react";
+  ActivityPanel,
+  DashAccount,
+  DashboardStyles,
+  NextPickupCard,
+  PopularChoices,
+  SafeImage,
+  StatsPanel,
+} from "@/components/dashboard-panels";
+import {
+  deriveActivity,
+  deriveSummary,
+  fetchActivityRequests,
+  fetchCustomerName,
+  type ActivityRequest,
+} from "@/lib/customer-activity-client";
+import { fetchCustomerOrders, type CustomerOrder } from "@/lib/orders-client";
 import {
   parseMealRequest,
   ParseOrderApiError,
   type ParsedMealRequest,
 } from "@/lib/parse-order-client";
-import { createClient } from "@/lib/supabase/client";
-import { saveParsedMealDraft } from "@/lib/parsed-meal-draft";
 import {
-  clearCustomerRequestDraft,
-  readCustomerRequestDraft,
-} from "@/lib/customer-request-draft";
+  clearParsedMealDraft,
+  saveParsedMealDraft,
+} from "@/lib/parsed-meal-draft";
 
-const examples = [
-  "I want two plates of sadza with beef and vegetables.",
-  "Ndinoda sadza nemuriwo nenyama.",
-  "Can I get one chicken and rice for lunch?",
+const quickChips = [
+  { label: "Sadza & beef", prompt: "I want sadza with beef stew." },
+  { label: "Chicken & rice", prompt: "I want chicken and rice for lunch." },
+  { label: "Vegetarian", prompt: "I would like sadza with muriwo and no meat." },
 ];
 
-const PICKUP_LOCATIONS = [
-  {
-    hub: "Joina City",
-    name: "Joina City Mall",
-    address: "Corner Julius Nyerere Way and Jason Moyo Avenue, Harare CBD.",
-    latitude: -17.831575,
-    longitude: 31.047615,
-  },
-  {
-    hub: "Eastgate",
-    name: "Eastgate Mall",
-    address: "Robert Mugabe Road, Harare CBD.",
-    latitude: -17.8314966,
-    longitude: 31.0526004,
-  },
-  {
-    hub: "Avondale",
-    name: "Avondale Shopping Centre",
-    address: "King George Road, Avondale, Harare.",
-    latitude: -17.8021697,
-    longitude: 31.0381457,
-  },
-] as const;
-const VALID_HUBS = PICKUP_LOCATIONS.map(({ hub }) => hub);
-const MAX_BUDGET = 99_999_999.99;
+/* Hero photo: put a real cook photo here (with the cook's permission).
+   If the file is missing, the hero simply shows its warm gradient. */
+const HERO_PHOTO = "/images/local-cook.jpg";
 
-const SUBMISSION_STORAGE_KEY = "stewrun:meal-request-submission";
+type PartOfDay = "morning" | "midday" | "afternoon" | "evening" | "default";
 
-type PickupHub = (typeof PICKUP_LOCATIONS)[number]["hub"];
+const greetings: Record<PartOfDay, { eyebrow: string; line: string }> = {
+  morning: { eyebrow: "Good morning", line: "what’s for lunch today?" },
+  midday: { eyebrow: "Lunchtime", line: "ready for lunch?" },
+  afternoon: { eyebrow: "Good afternoon", line: "ready for something delicious?" },
+  evening: { eyebrow: "Good evening", line: "let’s plan tomorrow’s lunch." },
+  default: { eyebrow: "Welcome back", line: "ready for lunch?" },
+};
 
-type RequestState = "editing" | "clarification" | "review";
-
-interface SavedMealRequest {
-  id: string;
-  items: Array<{
-    name: string;
-    quantity: number;
-  }>;
-  hub: PickupHub;
-  pickup_date: string;
-  pickup_time: string;
-  status: "open";
-  offers_close_at: string;
-}
-
-interface StoredSubmission {
-  key: string;
-  fingerprint: string;
-}
-
-interface SubmissionPayload {
-  items: ParsedMealRequest["items"];
-  budget: number;
-  hub: PickupHub;
-  pickup_date: string;
-  pickup_time: string;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    !Array.isArray(value)
-  );
-}
-
-function isValidDate(value: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return false;
-  }
-
-  const [year, month, day] = value.split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-
-  return (
-    date.getUTCFullYear() === year &&
-    date.getUTCMonth() === month - 1 &&
-    date.getUTCDate() === day
-  );
-}
-
-function parseBudgetInput(value: string): number | null {
-  const normalized = value.trim();
-
-  if (!/^\d+(?:\.\d{1,2})?$/.test(normalized)) {
-    return null;
-  }
-
-  const amount = Number(normalized);
-
-  if (
-    !Number.isFinite(amount) ||
-    amount <= 0 ||
-    amount > MAX_BUDGET
-  ) {
-    return null;
-  }
-
-  return amount;
-}
-
-function isPickupHub(value: unknown): value is PickupHub {
-  return (
-    typeof value === "string" &&
-    VALID_HUBS.some((hub) => hub === value)
-  );
-}
-
-function isValidSubmissionKey(value: unknown): value is string {
-  return (
-    typeof value === "string" &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-      value,
-    )
-  );
-}
-
-function readStoredSubmission(): StoredSubmission | null {
-  try {
-    const storedValue = window.sessionStorage.getItem(
-      SUBMISSION_STORAGE_KEY,
-    );
-
-    if (!storedValue) {
-      return null;
-    }
-
-    const parsed: unknown = JSON.parse(storedValue);
-
-    if (
-      !isRecord(parsed) ||
-      !isValidSubmissionKey(parsed.key) ||
-      typeof parsed.fingerprint !== "string"
-    ) {
-      return null;
-    }
-
-    return {
-      key: parsed.key,
-      fingerprint: parsed.fingerprint,
-    };
-  } catch {
-    // Storage may be unavailable or contain invalid data.
-    return null;
-  }
-}
-
-function storeSubmission(value: StoredSubmission): void {
-  try {
-    window.sessionStorage.setItem(
-      SUBMISSION_STORAGE_KEY,
-      JSON.stringify(value),
-    );
-  } catch {
-    // The in-memory state still protects retries during this page session.
-  }
-}
-
-function clearStoredSubmission(): void {
-  try {
-    window.sessionStorage.removeItem(SUBMISSION_STORAGE_KEY);
-  } catch {
-    // Failure to clear storage must not prevent a new request.
-  }
-}
-
-function getSubmissionFingerprint(
-  payload: SubmissionPayload,
-): string {
-  // Property order is deliberately fixed so the same payload produces
-  // the same fingerprint when reconstructed after a page refresh.
-  return JSON.stringify({
-    items: payload.items.map((item) => ({
-      name: item.name,
-      quantity: item.quantity,
-    })),
-    budget: payload.budget,
-    hub: payload.hub,
-    pickup_date: payload.pickup_date,
-    pickup_time: payload.pickup_time,
-  });
-}
-
-function isValidSavedMealRequest(
-  value: unknown,
-): value is SavedMealRequest {
-  if (!isRecord(value)) {
-    return false;
-  }
-
-  if (
-    typeof value.id !== "string" ||
-    !value.id.trim() ||
-    !Array.isArray(value.items) ||
-    value.items.length === 0 ||
-    value.items.length > 20 ||
-    !isPickupHub(value.hub) ||
-    typeof value.pickup_date !== "string" ||
-    !isValidDate(value.pickup_date) ||
-    typeof value.pickup_time !== "string" ||
-    !/^(0[8-9]|1\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(value.pickup_time) ||
-    value.status !== "open" ||
-    typeof value.offers_close_at !== "string" ||
-    Number.isNaN(Date.parse(value.offers_close_at))
-  ) {
-    return false;
-  }
-
-  return value.items.every(
-    (item) =>
-      isRecord(item) &&
-      typeof item.name === "string" &&
-      item.name.trim().length >= 2 &&
-      item.name.trim().length <= 150 &&
-      typeof item.quantity === "number" &&
-      Number.isInteger(item.quantity) &&
-      item.quantity >= 1 &&
-      item.quantity <= 20,
-  );
-}
-
-function getHarareParts() {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Africa/Harare",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(new Date());
-
-  const values: Record<string, number> = {};
-
-  for (const part of parts) {
-    if (part.type !== "literal") {
-      values[part.type] = Number(part.value);
-    }
-  }
-
-  return values;
-}
-
-function getEarliestPickupDate(): string {
-  const parts = getHarareParts();
-
-  let year = parts.year;
-  let month = parts.month;
-  let day = parts.day;
-
-  // Same-day requests are unavailable from 10:00 AM onward.
-  if (parts.hour >= 10) {
-    const tomorrow = new Date(
-      Date.UTC(year, month - 1, day + 1),
-    );
-
-    year = tomorrow.getUTCFullYear();
-    month = tomorrow.getUTCMonth() + 1;
-    day = tomorrow.getUTCDate();
-  }
-
-  return [
-    year,
-    String(month).padStart(2, "0"),
-    String(day).padStart(2, "0"),
-  ].join("-");
-}
-
-function isAfterHarareCutoff(): boolean {
-  return getHarareParts().hour >= 10;
-}
-
-export default function Home() {
+export default function CustomerDashboardPage() {
   const router = useRouter();
-  const supabase = useMemo(() => createClient(), []);
+  const heroRef = useRef<HTMLElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const [authError, setAuthError] = useState<string | null>(null);
-  const [request, setRequest] = useState("");
-  const [requestError, setRequestError] = useState<string | null>(null);
-  const [requestRequiresSignIn, setRequestRequiresSignIn] =
-    useState(false);
-
+  // Ziva request state (unchanged)
+  const [description, setDescription] = useState("");
+  const [parsedRequest, setParsedRequest] = useState<ParsedMealRequest | null>(null);
+  const [clarifying, setClarifying] = useState(false);
   const [parsing, setParsing] = useState(false);
-  const [parsedRequest, setParsedRequest] =
-    useState<ParsedMealRequest | null>(null);
-  const [requestState, setRequestState] =
-    useState<RequestState>("editing");
+  const [error, setError] = useState("");
+  const [needsSignIn, setNeedsSignIn] = useState(false);
 
-  const [pickupHub, setPickupHub] = useState<PickupHub | "">("");
-  const [pickupDate, setPickupDate] = useState("");
-  const [pickupTime, setPickupTime] = useState("");
-  const [minPickupDate, setMinPickupDate] = useState("");
-  const [afterCutoff, setAfterCutoff] = useState(false);
-  const [requestedQuantity, setRequestedQuantity] = useState<number | null>(null);
-  const [budgetInput, setBudgetInput] = useState("");
-  const [budgetError, setBudgetError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [savedRequest, setSavedRequest] =
-    useState<SavedMealRequest | null>(null);
-
-  const [submissionKey, setSubmissionKey] = useState<string | null>(null);
-  const [submissionFingerprint, setSubmissionFingerprint] =
-    useState<string | null>(null);
+  // Dashboard data (read-only, from existing endpoints)
+  const [fullName, setFullName] = useState<string | null>(null);
+  const [orders, setOrders] = useState<CustomerOrder[]>([]);
+  const [requests, setRequests] = useState<ActivityRequest[]>([]);
+  const [dataLoading, setDataLoading] = useState(true);
+  const [ordersFailed, setOrdersFailed] = useState(false);
+  const [requestsFailed, setRequestsFailed] = useState(false);
+  const [loadedAt, setLoadedAt] = useState(0);
+  const [partOfDay, setPartOfDay] = useState<PartOfDay>("default");
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
-      setMinPickupDate(getEarliestPickupDate());
-      setAfterCutoff(isAfterHarareCutoff());
-    }, 0);
-    return () => window.clearTimeout(timeout);
-  }, []);
-
-  useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      const draft = readCustomerRequestDraft();
-      if (!draft) return;
-
-      setRequest(draft.description);
-      setPickupHub(draft.pickupHub);
-      setPickupDate(draft.pickupDate);
-      setPickupTime(draft.pickupTime);
-      setRequestedQuantity(draft.quantity);
-      setBudgetInput(draft.budgetPerPlate);
+      const hour = new Date().getHours();
+      if (hour >= 5 && hour < 11) setPartOfDay("morning");
+      else if (hour >= 11 && hour < 14) setPartOfDay("midday");
+      else if (hour >= 14 && hour < 18) setPartOfDay("afternoon");
+      else setPartOfDay("evening");
     }, 0);
     return () => window.clearTimeout(timeout);
   }, []);
@@ -365,525 +96,312 @@ export default function Home() {
   useEffect(() => {
     let active = true;
 
-    const { data: authListener } = supabase.auth.onAuthStateChange(() => {
-      if (active) {
-        setAuthError(null);
-      }
+    void Promise.allSettled([
+      fetchCustomerOrders(),
+      fetchActivityRequests(),
+      fetchCustomerName(),
+    ]).then(([ordersResult, requestsResult, nameResult]) => {
+      if (!active) return;
+      if (ordersResult.status === "fulfilled") setOrders(ordersResult.value);
+      else setOrdersFailed(true);
+      if (requestsResult.status === "fulfilled") setRequests(requestsResult.value);
+      else setRequestsFailed(true);
+      if (nameResult.status === "fulfilled") setFullName(nameResult.value);
+      setLoadedAt(Date.now());
+      setDataLoading(false);
     });
-
-    supabase.auth
-      .getSession()
-      .then(({ error }) => {
-        if (active) {
-          setAuthError(
-            error ? "We could not check your account right now." : null,
-          );
-        }
-      })
-      .catch(() => {
-        if (active) {
-          setAuthError("We could not check your account right now.");
-        }
-      });
 
     return () => {
       active = false;
-      authListener.subscription.unsubscribe();
     };
-  }, [supabase]);
+  }, []);
+
+  const summary = useMemo(
+    () => deriveSummary(orders, requests, loadedAt),
+    [orders, requests, loadedAt],
+  );
+  const activity = useMemo(
+    () => deriveActivity(orders, requests, loadedAt),
+    [orders, requests, loadedAt],
+  );
+
+  const firstName = fullName?.split(/\s+/)[0] ?? null;
+  const copy = greetings[partOfDay];
+
+  function continueToPlan(result: ParsedMealRequest, mealDescription: string) {
+    saveParsedMealDraft({
+      description: mealDescription,
+      items: result.items.map((item) => ({ name: item.name, quantity: item.quantity })),
+      hub: result.hub,
+      pickupTime: result.pickup_time,
+      budget: result.budget,
+    });
+    router.push("/start");
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
-    const trimmedRequest = request.trim();
-
-    setRequestError(null);
-    setRequestRequiresSignIn(false);
-    setParsedRequest(null);
-    setBudgetError(null);
-    setSavedRequest(null);
-    setSaveError(null);
-
-    if (!trimmedRequest) {
-      setRequestError(
-        "Describe the meal you would like before continuing.",
-      );
+    const mealDescription = description.trim();
+    setError("");
+    setNeedsSignIn(false);
+    if (!mealDescription) {
+      setError("Tell Ziva what meal you would like first.");
       return;
     }
 
+    clearParsedMealDraft();
     setParsing(true);
-
     try {
-      const result = await parseMealRequest(trimmedRequest);
-
-      const draft = readCustomerRequestDraft();
-      const matchingDraft = draft?.description === trimmedRequest ? draft : null;
-      setParsedRequest({
-        ...result,
-        items: matchingDraft
-          ? result.items.map((item) => ({
-              ...item,
-              quantity: matchingDraft.quantity,
-            }))
-          : result.items,
-      });
-      setPickupHub(matchingDraft?.pickupHub ?? "");
-      setPickupDate(matchingDraft?.pickupDate ?? "");
-      setPickupTime(matchingDraft?.pickupTime ?? result.pickup_time);
-      setRequestedQuantity(matchingDraft?.quantity ?? null);
-      setBudgetInput(
-        matchingDraft?.budgetPerPlate ??
-          (result.budget !== null ? result.budget.toFixed(2) : ""),
-      );
-      setBudgetError(null);
-      setRequestState(
-        result.clarification === "meat_type" ? "clarification" : "review",
-      );
-      if (!result.clarification) {
-        saveParsedMealDraft({
-          description: trimmedRequest,
-          items: result.items.map((item) => ({
-            name: item.name,
-            quantity: matchingDraft?.quantity ?? item.quantity,
-          })),
-        });
-        router.push("/start");
+      const result = await parseMealRequest(mealDescription);
+      setParsedRequest(result);
+      if (result.clarification === "meat_type") {
+        setClarifying(true);
+        return;
       }
-    } catch (error) {
-      setRequestRequiresSignIn(
-        error instanceof ParseOrderApiError && error.status === 401,
-      );
-
-      setRequestError(
-        error instanceof ParseOrderApiError
-          ? error.message
-          : "We could not interpret your request. Please try again.",
-      );
+      continueToPlan(result, mealDescription);
+    } catch (parseError) {
+      setNeedsSignIn(parseError instanceof ParseOrderApiError && parseError.status === 401);
+      setError(parseError instanceof Error ? parseError.message : "Ziva could not understand that. Please try again.");
     } finally {
       setParsing(false);
     }
   }
 
   async function handleMeatChoice(choice: string) {
-    const originalRequest = request.trim();
-
-    if (!originalRequest || parsing) {
-      return;
-    }
-
+    if (!parsedRequest || parsing) return;
     setParsing(true);
-    setRequestError(null);
-
+    setError("");
     try {
-      const clarifiedRequest = [
-        originalRequest,
-        `The customer answered Ziva's meat question: ${choice}.`,
-      ].join("\n");
-      const result = await parseMealRequest(clarifiedRequest);
-
-      const draft = readCustomerRequestDraft();
-      const matchingDraft = draft?.description === originalRequest ? draft : null;
-      setParsedRequest({
-        ...result,
-        items: matchingDraft
-          ? result.items.map((item) => ({
-              ...item,
-              quantity: matchingDraft.quantity,
-            }))
-          : result.items,
-      });
-      setPickupHub(matchingDraft?.pickupHub ?? pickupHub);
-      setPickupDate(matchingDraft?.pickupDate ?? pickupDate);
-      setPickupTime(matchingDraft?.pickupTime ?? result.pickup_time);
-      setRequestedQuantity(matchingDraft?.quantity ?? requestedQuantity);
-      setBudgetInput(
-        matchingDraft?.budgetPerPlate ??
-          (result.budget !== null ? result.budget.toFixed(2) : budgetInput),
-      );
-      setBudgetError(null);
-      setRequestState(
-        result.clarification === "meat_type" ? "clarification" : "review",
-      );
-      if (!result.clarification) {
-        saveParsedMealDraft({
-          description: originalRequest,
-          items: result.items.map((item) => ({
-            name: item.name,
-            quantity: matchingDraft?.quantity ?? item.quantity,
-          })),
-        });
-        router.push("/start");
+      const clarified = `${description.trim()}\nThe customer answered Ziva's meat question: ${choice}.`;
+      const result = await parseMealRequest(clarified);
+      setParsedRequest(result);
+      if (result.clarification === "meat_type") {
+        setError("Ziva still needs a meat choice. Please choose one below.");
+        return;
       }
-    } catch (error) {
-      setRequestError(
-        error instanceof ParseOrderApiError
-          ? error.message
-          : "We could not update your meal choice. Please try again.",
-      );
+      continueToPlan(result, description.trim());
+    } catch (parseError) {
+      setError(parseError instanceof Error ? parseError.message : "Ziva could not update your meal. Please try again.");
     } finally {
       setParsing(false);
     }
   }
 
-  async function handleSaveRequest() {
-    if (!parsedRequest || !pickupHub || !pickupDate || !pickupTime || saving) {
-      return;
-    }
-
-    const budget = parseBudgetInput(budgetInput);
-
-    if (budget === null) {
-      setBudgetError(
-        "Enter a valid positive budget per plate, with up to two decimal places.",
-      );
-      return;
-    }
-
-    setBudgetError(null);
-
-    // Recheck the Harare cutoff at the moment of submission.
-    // The date shown in the picker may have become stale if the
-    // customer left this screen open across 10:00 AM.
-    const earliestPickupDate = getEarliestPickupDate();
-
-    if (!isValidDate(pickupDate) || pickupDate < earliestPickupDate) {
-      setPickupDate("");
-      setSaveError(
-        "The pickup date is no longer available. Please choose a new date.",
-      );
-      return;
-    }
-
-    if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(pickupTime)) {
-      setSaveError("Choose a valid pickup time.");
-      return;
-    }
-
-    const payload: SubmissionPayload = {
-      items: parsedRequest.items.map((item) => ({
-        name: item.name,
-        quantity: item.quantity,
-      })),
-      budget,
-      hub: pickupHub,
-      pickup_date: pickupDate,
-      pickup_time: pickupTime,
-    };
-
-    const fingerprint = getSubmissionFingerprint(payload);
-
-    // Reuse the current key when this exact request is retried.
-    let key =
-      submissionKey && submissionFingerprint === fingerprint
-        ? submissionKey
-        : null;
-
-    // If the page was refreshed, recover the key from session storage.
-    if (!key) {
-      const storedSubmission = readStoredSubmission();
-
-      if (storedSubmission?.fingerprint === fingerprint) {
-        key = storedSubmission.key;
-      }
-    }
-
-    // A changed payload receives a new key.
-    if (!key) {
-      key = crypto.randomUUID();
-    }
-
-    setSubmissionKey(key);
-    setSubmissionFingerprint(fingerprint);
-
-    storeSubmission({
-      key,
-      fingerprint,
-    });
-
-    setSaving(true);
-    setSaveError(null);
-
-    try {
-      const response = await fetch("/api/meal-requests", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Idempotency-Key": key,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      let responsePayload: unknown;
-
-      try {
-        responsePayload = await response.json();
-      } catch {
-        throw new Error(
-          "We received an unreadable response. Please try again.",
-        );
-      }
-
-      if (!response.ok) {
-        const message =
-          isRecord(responsePayload) &&
-          typeof responsePayload.error === "string"
-            ? responsePayload.error
-            : "We could not save your meal request.";
-
-        throw new Error(message);
-      }
-
-      if (
-        !isRecord(responsePayload) ||
-        !isValidSavedMealRequest(responsePayload.request)
-      ) {
-        throw new Error(
-          "The saved request could not be verified. Please retry this submission or check your requests before starting another one.",
-        );
-      }
-
-      setSavedRequest(responsePayload.request);
-      clearCustomerRequestDraft();
-
-      // The request is confirmed. The key is no longer needed.
-      clearStoredSubmission();
-      setSubmissionKey(null);
-      setSubmissionFingerprint(null);
-    } catch (error) {
-      // Keep the key so a retry uses the same database identity.
-      setSaveError(
-        error instanceof Error
-          ? error.message
-          : "We could not save your meal request. Please try again.",
-      );
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  function editRequest() {
-    setRequestState("editing");
-    setRequestError(null);
-    setSaveError(null);
-  }
-
-  function startAnotherRequest() {
-    setRequest("");
+  function editDescription() {
+    setClarifying(false);
     setParsedRequest(null);
-    setPickupHub("");
-    setPickupDate("");
-    setPickupTime("");
-    setRequestedQuantity(null);
-    setBudgetInput("");
-    setBudgetError(null);
-    setSavedRequest(null);
-    setSaveError(null);
-    setRequestError(null);
-    setRequestRequiresSignIn(false);
-    setSubmissionKey(null);
-    setSubmissionFingerprint(null);
-    clearStoredSubmission();
-    clearCustomerRequestDraft();
-    setRequestState("editing");
+    setError("");
+    clearParsedMealDraft();
+  }
+
+  /** Fills the Ziva box and brings it into view. Nothing is sent. */
+  function focusZiva(prompt?: string) {
+    if (parsing) return;
+    if (clarifying) editDescription();
+    if (prompt) {
+      setDescription(prompt);
+      setError("");
+      setNeedsSignIn(false);
+    }
+    window.setTimeout(() => {
+      const reduceMotion = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+      heroRef.current?.scrollIntoView({
+        behavior: reduceMotion ? "auto" : "smooth",
+        block: "start",
+      });
+      inputRef.current?.focus({ preventScroll: true });
+    }, 0);
   }
 
   return (
     <main className="min-h-screen bg-cream-50">
-      <section
-        id="home"
-        className="mx-auto max-w-7xl px-5 pb-12 pt-8 sm:px-8 sm:pb-16 sm:pt-12"
-      >
-        <header className="flex flex-col gap-6 border-b border-ink-900/10 pb-7 sm:pb-8 md:flex-row md:items-end md:justify-between">
-          <div className="max-w-3xl">
-            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-sage-500">
-              Your StewRun dashboard
-            </p>
-            <h1 className="mt-3 font-display text-4xl leading-tight tracking-tight text-ink-900 sm:text-5xl">
-              Welcome. What would you like for lunch?
-            </h1>
-            <p className="mt-4 max-w-2xl text-base leading-7 text-ink-900/70">
-              Describe what you&apos;re craving in English, Shona, or both.
-              Ziva helps structure your request so you can review it before
-              approved Harare cooks prepare offers.
-            </p>
-          </div>
+      <DashboardStyles />
 
-        </header>
+      <div className="dash-wrap">
+        <DashAccount firstName={firstName} />
 
-        <div className="mt-8 grid items-start gap-10">
-          <Card className="border border-ink-900/10 p-5 shadow-none sm:p-7 lg:p-8">
-            {savedRequest ? (
-              <SuccessPanel
-                request={savedRequest}
-                onStartAnother={startAnotherRequest}
-              />
-            ) : requestState === "editing" || !parsedRequest ? (
-              <>
-                <div className="mb-6 border-b border-ink-900/10 pb-5">
-                  <p className="text-sm font-semibold uppercase tracking-[0.12em] text-clay-500">
-                    Start with Ziva
-                  </p>
+        <div className="dash-grid">
+          <div className="dash-main">
+            {/* Hero with the Ziva request */}
+            <section
+              ref={heroRef}
+              aria-labelledby="dash-heading"
+              className={`dash-hero${clarifying ? " is-wide" : ""}`}
+            >
+              <div className="dash-hero-photo" aria-hidden="true">
+                <SafeImage
+                  src={HERO_PHOTO}
+                  sizes="(min-width: 768px) 40vw, 0px"
+                  className="object-cover object-[60%_30%]"
+                />
+              </div>
 
-                  <h2 className="mt-2 font-display text-3xl tracking-tight text-ink-900 sm:text-4xl">
-                    Tell us what you&apos;re craving.
-                  </h2>
+              <div className="dash-hero-body">
+                <p className="text-sm font-semibold text-clay-500">
+                  {copy.eyebrow}
+                </p>
+                <h1
+                  id="dash-heading"
+                  className="mt-1 font-display text-3xl leading-[1.08] tracking-tight text-ink-900 sm:text-4xl lg:text-[44px]"
+                  style={{ overflowWrap: "anywhere" }}
+                >
+                  {firstName ?? "Hello"},
+                  <span className="block text-clay-500">{copy.line}</span>
+                </h1>
+                <span
+                  aria-hidden="true"
+                  className="mt-4 block h-1 w-[102px] rounded-full bg-saffron-500"
+                />
 
-                  <p className="mt-2 text-sm leading-6 text-ink-900/65">
-                    Ziva turns your description into meal details you can
-                    check and edit before sending a request.
-                  </p>
-                </div>
-
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div>
-                    <label
-                      htmlFor="meal-request"
-                      className="mb-2 block text-sm font-medium text-ink-900"
-                    >
-                      Your meal request
-                    </label>
-
-                    <textarea
-                      id="meal-request"
-                      name="meal-request"
-                      rows={5}
-                      maxLength={500}
-                      value={request}
-                      onChange={(event) => {
-                        setRequest(event.target.value);
-                        setRequestError(null);
-                        setRequestRequiresSignIn(false);
-                      }}
-                      placeholder="For example: I want two plates of sadza with beef and vegetables."
-                      aria-describedby="request-help request-count"
-                      aria-invalid={Boolean(requestError)}
-                      className="min-h-36 w-full resize-y rounded-lg border border-ink-900/20 bg-white px-4 py-4 text-base leading-7 text-ink-900 placeholder:text-ink-900/45 focus:border-clay-500 focus:outline-none focus:ring-2 focus:ring-clay-500/25 sm:min-h-40"
+                {clarifying ? (
+                  <div className="dash-panel">
+                    <MeatClarificationPanel
+                      loading={parsing}
+                      error={error}
+                      onChoose={(choice) => void handleMeatChoice(choice)}
+                      onBack={editDescription}
                     />
-
-                    <div className="mt-2 flex justify-between gap-3 text-xs leading-5 text-ink-900/60">
-                      <span id="request-help">
-                        English, Shona, or a mixture of both.
-                      </span>
-
-                      <span id="request-count" className="shrink-0">
-                        {request.length}/500
-                      </span>
-                    </div>
                   </div>
+                ) : (
+                  <form onSubmit={handleSubmit} className="dash-form">
+                    <div className="dash-pill">
+                      <label htmlFor="ziva-request" className="sr-only">
+                        Describe your meal
+                      </label>
+                      <input
+                        id="ziva-request"
+                        ref={inputRef}
+                        type="text"
+                        value={description}
+                        onChange={(event) => {
+                          setDescription(event.target.value);
+                          setError("");
+                          setNeedsSignIn(false);
+                        }}
+                        maxLength={500}
+                        placeholder="Describe your meal to Ziva…"
+                        className="dash-input"
+                      />
+                      <Button
+                        type="submit"
+                        disabled={parsing}
+                        aria-busy={parsing}
+                        className="dash-ask"
+                      >
+                        {parsing ? "Thinking…" : "Ask Ziva"}
+                        {!parsing && (
+                          <ArrowRight aria-hidden="true" className="size-4" />
+                        )}
+                      </Button>
+                    </div>
 
-                  <fieldset>
-                    <legend className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-900/60">
-                      Try an example
-                    </legend>
-
-                    <div className="flex flex-wrap gap-2">
-                      {examples.map((example) => (
+                    <div className="dash-chips">
+                      {quickChips.map((chip) => (
                         <button
-                          key={example}
+                          key={chip.label}
                           type="button"
+                          className="dash-chip"
                           onClick={() => {
-                            setRequest(example);
-                            setRequestError(null);
-                            setRequestRequiresSignIn(false);
+                            setDescription(chip.prompt);
+                            setError("");
+                            inputRef.current?.focus();
                           }}
-                          className="rounded-lg border border-ink-900/15 bg-cream-50 px-3 py-2 text-left text-xs leading-4 text-ink-900/80 hover:border-sage-500 hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sage-500"
                         >
-                          {example}
+                          {chip.label}
                         </button>
                       ))}
                     </div>
-                  </fieldset>
 
-                  {requestError && (
-                    <div
-                      role="alert"
-                      className="rounded-lg border border-clay-500/25 bg-clay-500/5 px-4 py-3 text-sm leading-5 text-ink-900"
-                    >
-                      <p>{requestError}</p>
+                    {error && (
+                      <div
+                        role="alert"
+                        className="rounded-lg border border-clay-500/25 bg-white px-4 py-3 text-sm text-ink-900"
+                      >
+                        <p>{error}</p>
+                        {needsSignIn && (
+                          <Link
+                            href="/login"
+                            className="mt-2 inline-block font-semibold text-clay-700 underline"
+                          >
+                            Sign in to continue
+                          </Link>
+                        )}
+                      </div>
+                    )}
 
-                      {requestRequiresSignIn && (
-                        <Link
-                          href="/login"
-                          className="mt-1 inline-block font-semibold text-clay-500 underline-offset-4 hover:underline"
-                        >
-                          Sign in to continue
-                        </Link>
-                      )}
-                    </div>
-                  )}
-
-                  {authError && (
-                    <p role="status" className="text-sm text-clay-500">
-                      {authError}
+                    <p className="text-xs leading-5 text-ink-900/65">
+                      Nothing is sent to cooks until you review and submit it
+                      on the next page.
                     </p>
-                  )}
+                  </form>
+                )}
+              </div>
+            </section>
 
-                  <Button
-                    type="submit"
-                    disabled={parsing}
-                    aria-busy={parsing}
-                    className="min-h-12 w-full rounded-md text-base font-semibold disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {parsing
-                      ? "Ziva is understanding your request..."
-                      : "Ask Ziva"}
-                  </Button>
-
-                  <p className="text-center text-xs leading-5 text-ink-900/60">
-                    This step only interprets your request. It does not save or
-                    place an order.
-                  </p>
-                </form>
-              </>
-            ) : requestState === "clarification" && parsedRequest ? (
-              <MeatClarificationPanel
-                loading={parsing}
-                error={requestError}
-                onChoose={handleMeatChoice}
-                onBack={editRequest}
-              />
-            ) : (
-              <ReviewPanel
-                result={parsedRequest}
-                pickupHub={pickupHub}
-                onPickupHubChange={(hub) => {
-                  setPickupHub(hub);
-                  setSaveError(null);
-                }}
-                pickupDate={pickupDate}
-                pickupTime={pickupTime}
-                onPickupTimeChange={(time) => {
-                  setPickupTime(time);
-                  setSaveError(null);
-                }}
-                budgetInput={budgetInput}
-                budgetError={budgetError}
-                onBudgetChange={(value) => {
-                  setBudgetInput(value);
-                  setBudgetError(null);
-                  setSaveError(null);
-                }}
-                minPickupDate={minPickupDate}
-                afterCutoff={afterCutoff}
-                saving={saving}
-                saveError={saveError}
-                onPickupDateChange={(date) => {
-                  setPickupDate(date);
-                  setSaveError(null);
-                }}
-                onSave={handleSaveRequest}
-                onEdit={editRequest}
+            {summary.nextOrder && (
+              <NextPickupCard
+                order={summary.nextOrder}
+                moreCount={summary.moreActive}
               />
             )}
-          </Card>
 
+            <PopularChoices onRequest={(prompt) => focusZiva(prompt)} />
+          </div>
+
+          <aside className="dash-side" aria-label="Your lunch summary">
+            <StatsPanel
+              loading={dataLoading}
+              ordersFailed={ordersFailed}
+              requestsFailed={requestsFailed}
+              summary={summary}
+            />
+
+            <section className="dash-card" aria-labelledby="actions-heading">
+              <h2 id="actions-heading" className="font-display text-xl text-ink-900">
+                Quick actions
+              </h2>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12 }}>
+                <button
+                  type="button"
+                  className="dash-btn dash-btn-solid"
+                  onClick={() => focusZiva()}
+                >
+                  Start a lunch request
+                </button>
+                <Link href="/my-requests" className="dash-btn dash-btn-outline">
+                  {summary.offersToReview > 0 && !dataLoading
+                    ? `Review my offers (${summary.offersToReview})`
+                    : "Open My Lunch"}
+                </Link>
+              </div>
+            </section>
+
+            <ActivityPanel items={activity} loading={dataLoading} />
+
+            <section
+              className="rounded-xl border border-sage-500/20 bg-white p-5"
+              aria-labelledby="next-heading"
+            >
+              <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-sage-700">
+                <Utensils aria-hidden="true" className="size-4" /> What happens next
+              </p>
+              <h2
+                id="next-heading"
+                className="mt-3 font-display text-xl tracking-tight text-ink-900"
+              >
+                Check your meal, then compare.
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-ink-900/70">
+                You will add plate counts, pickup details and a per-plate
+                budget. Cooks then send their own offers. Pay the cook in cash
+                when you collect.
+              </p>
+            </section>
+          </aside>
         </div>
-      </section>
-
-      <footer className="mx-auto flex max-w-7xl flex-col gap-2 px-5 py-6 text-sm text-ink-900/60 sm:flex-row sm:items-center sm:justify-between sm:px-8">
-        <p>StewRun · Harare lunch, planned ahead.</p>
-        <p>Place pre-orders before 10:00 AM each day.</p>
-      </footer>
+      </div>
     </main>
   );
 }
@@ -895,609 +413,33 @@ function MeatClarificationPanel({
   onBack,
 }: {
   loading: boolean;
-  error: string | null;
+  error: string;
   onChoose: (choice: string) => void;
   onBack: () => void;
 }) {
-  const [showOther, setShowOther] = useState(false);
-  const [otherMeat, setOtherMeat] = useState("");
-
   const choices = [
-    { value: "Beef (nyama yemombe)", picture: "🐄", title: "Beef", shona: "Nyama yemombe" },
-    { value: "Chicken (nyama yehuku)", picture: "🐔", title: "Chicken", shona: "Nyama yehuku" },
-    { value: "Any meat; let the cook choose the type", picture: "🍽️", title: "Any meat", shona: "Chero nyama" },
+    { value: "Beef (nyama yemombe)", label: "Beef", shona: "Nyama yemombe", icon: "🐄" },
+    { value: "Chicken (huku)", label: "Chicken", shona: "Huku", icon: "🐔" },
+    { value: "Any meat", label: "Any meat", shona: "Nyama chero ipi", icon: "🍖" },
   ];
+  const [other, setOther] = useState("");
 
   return (
-    <section aria-labelledby="meat-clarification-heading" aria-live="polite">
-      <p className="text-sm font-semibold uppercase tracking-[0.12em] text-clay-500">
-        Ziva asks · Ziva anobvunza
-      </p>
-      <h2
-        id="meat-clarification-heading"
-        className="mt-2 font-display text-2xl tracking-tight text-ink-900 sm:text-3xl"
-      >
-        Which meat would you like?
-      </h2>
-      <p className="mt-2 text-base leading-6 text-ink-900/70">
-        Ndeipi nyama yaunoda? Tap a picture. If you do not mind, choose Any meat.
-      </p>
-
-      <fieldset disabled={loading} className="mt-6">
-        <legend className="sr-only">Choose the meat for your meal</legend>
-        <div className="grid grid-cols-2 gap-3">
-          {choices.map((choice) => (
-            <button
-              key={choice.title}
-              type="button"
-              onClick={() => onChoose(choice.value)}
-              aria-label={`${choice.title}, ${choice.shona}`}
-              className="flex min-h-32 flex-col items-center justify-center gap-2 rounded-xl border border-ink-900/15 bg-white p-4 text-center hover:border-clay-500 hover:bg-clay-500/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay-500 disabled:cursor-wait disabled:opacity-60"
-            >
-              <span aria-hidden="true" className="text-4xl">{choice.picture}</span>
-              <span className="text-base font-semibold text-ink-900">{choice.title}</span>
-              <span className="text-sm text-ink-900/65">{choice.shona}</span>
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={() => setShowOther((shown) => !shown)}
-            aria-expanded={showOther}
-            className="flex min-h-32 flex-col items-center justify-center gap-2 rounded-xl border border-ink-900/15 bg-white p-4 text-center hover:border-clay-500 hover:bg-clay-500/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay-500 disabled:cursor-wait disabled:opacity-60"
-            disabled={loading}
-          >
-            <span aria-hidden="true" className="text-4xl">✍️</span>
-            <span className="text-base font-semibold text-ink-900">Other</span>
-            <span className="text-sm text-ink-900/65">Imwe nyama</span>
-          </button>
-        </div>
-      </fieldset>
-
-      {showOther && (
-        <div className="mt-4 rounded-xl border border-ink-900/10 bg-white p-4">
-          <label htmlFor="other-meat" className="block text-sm font-semibold text-ink-900">
-            Type the meat you want · Nyora nyama yaunoda
-          </label>
-          <input
-            id="other-meat"
-            value={otherMeat}
-            onChange={(event) => setOtherMeat(event.target.value)}
-            maxLength={100}
-            disabled={loading}
-            placeholder="For example, pork"
-            className="mt-2 min-h-12 w-full rounded-lg border border-ink-900/20 bg-white px-3 py-2 text-base text-ink-900 focus:border-clay-500 focus:outline-none focus:ring-2 focus:ring-clay-500/25"
-          />
-          <button
-            type="button"
-            onClick={() => onChoose(`Other meat: ${otherMeat.trim()}`)}
-            disabled={loading || !otherMeat.trim()}
-            className="mt-3 min-h-12 w-full rounded-lg bg-clay-500 px-4 text-base font-semibold text-cream-50 hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay-500 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Continue · Enderera
-          </button>
-        </div>
-      )}
-
-      {!showOther && error && (
-        <p role="alert" className="mt-4 rounded-lg border border-clay-500/25 bg-clay-500/5 px-4 py-3 text-sm text-ink-900">
-          {error}
-        </p>
-      )}
-      {showOther && error && (
-        <p role="alert" className="mt-4 rounded-lg border border-clay-500/25 bg-clay-500/5 px-4 py-3 text-sm text-ink-900">
-          {error}
-        </p>
-      )}
-      {loading && (
-        <p role="status" className="mt-4 text-center text-sm text-ink-900/70">
-          Ziva is updating your meal · Ziva ari kugadzirisa chikafu chako
-        </p>
-      )}
-      <button
-        type="button"
-        onClick={onBack}
-        disabled={loading}
-        className="mt-5 min-h-12 w-full rounded-lg border border-ink-900/15 bg-white px-4 text-sm font-semibold text-ink-900 hover:border-ink-900/35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay-500 disabled:opacity-50"
-      >
-        Change my meal description · Chinja chikafu
-      </button>
-    </section>
-  );
-}
-
-function ReviewPanel({
-  result,
-  pickupHub,
-  onPickupHubChange,
-  pickupDate,
-  pickupTime,
-  onPickupTimeChange,
-  budgetInput,
-  budgetError,
-  onBudgetChange,
-  minPickupDate,
-  afterCutoff,
-  saving,
-  saveError,
-  onPickupDateChange,
-  onSave,
-  onEdit,
-}: {
-  result: ParsedMealRequest;
-  pickupHub: PickupHub | "";
-  onPickupHubChange: (hub: PickupHub) => void;
-  pickupDate: string;
-  pickupTime: string;
-  onPickupTimeChange: (time: string) => void;
-  budgetInput: string;
-  budgetError: string | null;
-  onBudgetChange: (value: string) => void;
-  minPickupDate: string;
-  afterCutoff: boolean;
-  saving: boolean;
-  saveError: string | null;
-  onPickupDateChange: (date: string) => void;
-  onSave: () => void;
-  onEdit: () => void;
-}) {
-  const [locationSearch, setLocationSearch] = useState("");
-  const selectedLocation = PICKUP_LOCATIONS.find(
-    (location) => location.hub === pickupHub,
-  );
-  const searchTerm = locationSearch.trim().toLowerCase();
-  const matchingLocations = PICKUP_LOCATIONS.filter((location) =>
-    `${location.name} ${location.address}`
-      .toLowerCase()
-      .includes(searchTerm),
-  );
-  const filteredLocations =
-    selectedLocation &&
-    !matchingLocations.some(
-      (location) => location.hub === selectedLocation.hub,
-    )
-      ? [selectedLocation, ...matchingLocations]
-      : matchingLocations;
-  const mapUrl = new URL(
-    "https://www.openstreetmap.org/export/embed.html",
-  );
-  mapUrl.searchParams.set("bbox", "31.03,-17.84,31.06,-17.79");
-  mapUrl.searchParams.set("layer", "mapnik");
-  if (selectedLocation) {
-    mapUrl.searchParams.set(
-      "marker",
-      `${selectedLocation.latitude},${selectedLocation.longitude}`,
-    );
-  }
-  const openMapUrl = selectedLocation
-    ? `https://www.openstreetmap.org/?mlat=${selectedLocation.latitude}&mlon=${selectedLocation.longitude}#map=16/${selectedLocation.latitude}/${selectedLocation.longitude}`
-    : "https://www.openstreetmap.org/?#map=14/-17.82/31.045";
-
-  return (
-    <section aria-labelledby="review-heading" aria-live="polite">
-      <p className="text-sm font-semibold text-sage-500">
-        Ziva understood your request.
-      </p>
-
-      <h2
-        id="review-heading"
-        className="mt-2 font-display text-2xl tracking-tight text-ink-900 sm:text-3xl"
-      >
-        Review your meal request.
-      </h2>
-
-      <p className="mt-2 text-sm leading-6 text-ink-900/65">
-        Review Ziva&apos;s interpretation, adjust the pickup details and
-        budget, and edit your description if needed. Nothing is submitted
-        until you choose Submit meal request.
-      </p>
-
-      {result.confidence === "low" && (
-        <div
-          role="alert"
-          className="mt-5 rounded-lg border border-saffron-500/50 bg-saffron-500/10 px-4 py-3 text-sm leading-5 text-ink-900"
-        >
-          We&apos;re not fully sure we understood. Please check the details
-          carefully or edit your request.
-        </div>
-      )}
-
-      <div className="mt-6">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-ink-900/60">
-          Ziva&apos;s interpretation
-        </h3>
-
-        <ul className="mt-3 divide-y divide-ink-900/10 border-y border-ink-900/10">
-          {result.items.map((item, index) => (
-            <li
-              key={`${item.name}-${index}`}
-              className="flex items-start justify-between gap-4 py-3"
-            >
-              <span className="font-medium text-ink-900">{item.name}</span>
-
-              <span className="shrink-0 text-sm text-ink-900/70">
-                Qty {item.quantity}
-              </span>
-            </li>
-          ))}
-        </ul>
+    <section aria-labelledby="ziva-meat-question">
+      <p className="text-xs font-semibold uppercase tracking-wider text-clay-600">One quick question</p>
+      <h2 id="ziva-meat-question" className="mt-2 font-display text-2xl text-ink-900">What kind of meat would you like?</h2>
+      <p className="mt-2 text-sm leading-6 text-ink-900/65">Choose one, or tell Ziva another kind.</p>
+      <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {choices.map((choice) => <button key={choice.value} type="button" onClick={() => onChoose(choice.value)} disabled={loading} className="flex min-h-28 flex-col items-center justify-center gap-2 rounded-xl border border-ink-900/15 bg-white p-3 text-center hover:border-clay-500 hover:bg-clay-500/5 disabled:opacity-60"><span aria-hidden="true" className="text-3xl">{choice.icon}</span><span className="text-sm font-semibold">{choice.label}</span><span className="text-xs text-ink-900/60">{choice.shona}</span></button>)}
       </div>
-
-      <fieldset className="mt-6">
-        <legend className="text-sm font-semibold text-ink-900">
-          Choose your pickup location
-        </legend>
-        <p id="pickup-location-help" className="mt-1 text-sm leading-5 text-ink-900/65">
-          Select one provisional mall reference location. Ziva does not choose
-          this for you.
-        </p>
-
-        <div className="mt-4 grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
-          <div>
-            <label htmlFor="pickup-location-search" className="sr-only">
-              Search pickup locations
-            </label>
-            <div className="relative">
-              <Search
-                aria-hidden="true"
-                className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-ink-900/55"
-              />
-              <input
-                id="pickup-location-search"
-                type="search"
-                value={locationSearch}
-                onChange={(event) => setLocationSearch(event.target.value)}
-                placeholder="Search locations or addresses"
-                className="min-h-12 w-full rounded-lg border border-ink-900/20 bg-white py-2 pl-10 pr-3 text-base text-ink-900 placeholder:text-ink-900/50 focus:border-clay-500 focus:outline-none focus:ring-2 focus:ring-clay-500/25"
-              />
-            </div>
-
-            <div
-              role="radiogroup"
-              aria-describedby="pickup-location-help"
-              aria-required="true"
-              className="mt-3 space-y-3"
-            >
-              {filteredLocations.map((location) => {
-                const isSelected = pickupHub === location.hub;
-
-                return (
-                  <label
-                    key={location.hub}
-                    className={`relative flex min-h-20 cursor-pointer gap-3 rounded-xl border p-4 transition-colors focus-within:ring-2 focus-within:ring-clay-500 focus-within:ring-offset-2 ${
-                      isSelected
-                        ? "border-clay-500 bg-clay-500/5"
-                        : "border-ink-900/15 bg-white hover:border-ink-900/35"
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="pickup-hub"
-                      value={location.hub}
-                      required
-                      checked={isSelected}
-                      onChange={() => onPickupHubChange(location.hub)}
-                      className="mt-1 size-5 shrink-0 accent-clay-500"
-                    />
-                    <MapPin
-                      aria-hidden="true"
-                      className={`mt-0.5 size-5 shrink-0 ${
-                        isSelected ? "text-clay-500" : "text-ink-900/55"
-                      }`}
-                    />
-                    <span className="min-w-0">
-                      <span className="block font-semibold text-ink-900">
-                        {location.name}
-                      </span>
-                      <span className="mt-1 block text-sm leading-5 text-ink-900/70">
-                        {location.address}
-                      </span>
-                      {isSelected && (
-                        <span className="mt-2 block text-xs font-semibold text-clay-500">
-                          Selected location
-                        </span>
-                      )}
-                    </span>
-                  </label>
-                );
-              })}
-
-              {matchingLocations.length === 0 && (
-                <p className="rounded-lg border border-ink-900/10 bg-white px-4 py-3 text-sm text-ink-900/70">
-                  {selectedLocation
-                    ? "Your selected location remains shown above. No other locations match; try a mall name or street."
-                    : "No locations match that search. Try a mall name or street."}
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between gap-3">
-              <h3 className="text-sm font-semibold text-ink-900">
-                Optional map preview
-              </h3>
-              <a
-                href={openMapUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 text-sm font-medium text-clay-500 underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink-900"
-              >
-                Open map
-                <ExternalLink aria-hidden="true" className="size-4" />
-              </a>
-            </div>
-            <p className="mt-1 text-xs leading-5 text-ink-900/65">
-              Approximate mall reference point only; not a confirmed collection
-              entrance. The list works without the map.
-            </p>
-            <iframe
-              title={
-                selectedLocation
-                  ? `Map preview of ${selectedLocation.name}`
-                  : "Map preview of the Harare pickup locations"
-              }
-              src={mapUrl.toString()}
-              loading="lazy"
-              referrerPolicy="no-referrer"
-              className="mt-3 h-56 w-full rounded-xl border border-ink-900/15 bg-cream-50 sm:h-64"
-            />
-            <p className="mt-2 text-xs text-ink-900/55">
-              Map data © OpenStreetMap contributors.
-            </p>
-          </div>
-        </div>
-      </fieldset>
-
-      <div className="mt-5">
-        <label
-          htmlFor="pickup-date"
-          className="mb-2 block text-sm font-semibold text-ink-900"
-        >
-          Choose your pickup date
-        </label>
-
-        <input
-          id="pickup-date"
-          type="date"
-          required
-          min={minPickupDate}
-          value={pickupDate}
-          onChange={(event) => onPickupDateChange(event.target.value)}
-          className="min-h-12 w-full rounded-lg border border-ink-900/20 bg-white px-3 py-2 text-ink-900 focus:border-clay-500 focus:outline-none focus:ring-2 focus:ring-clay-500/25"
-        />
-
-        <p className="mt-2 text-xs leading-5 text-ink-900/60">
-          {afterCutoff
-            ? "The 10:00 AM Harare cutoff has passed. Please choose tomorrow or a later date."
-            : "You can choose today before 10:00 AM Harare time, or select a future date."}
-        </p>
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+        <label className="sr-only" htmlFor="other-meat">Other meat</label>
+        <input id="other-meat" value={other} onChange={(event) => setOther(event.target.value)} maxLength={100} placeholder="Another meat, such as pork" className="min-h-11 flex-1 rounded-lg border border-ink-900/20 bg-white px-3 text-base" />
+        <Button type="button" disabled={!other.trim() || loading} onClick={() => onChoose(`Other meat: ${other.trim()}`)} className="min-h-11">Use this</Button>
       </div>
-
-      <div className="mt-5">
-        <label
-          htmlFor="pickup-time"
-          className="mb-2 block text-sm font-semibold text-ink-900"
-        >
-          Choose your pickup time
-        </label>
-        <input
-          id="pickup-time"
-          type="time"
-          min="08:00"
-          max="23:59"
-          required
-          value={pickupTime}
-          onChange={(event) => onPickupTimeChange(event.target.value)}
-          className="min-h-12 w-full rounded-lg border border-ink-900/20 bg-white px-3 py-2 text-ink-900 focus:border-clay-500 focus:outline-none focus:ring-2 focus:ring-clay-500/25"
-        />
-        <p className="mt-1 text-xs leading-5 text-ink-900/55">
-          Choose the time you plan to collect. The pilot currently records an exact time.
-        </p>
-      </div>
-
-      <div className="mt-5">
-        <label
-          htmlFor="budget-per-plate"
-          className="mb-2 block text-sm font-semibold text-ink-900"
-        >
-          Your budget per plate (USD)
-        </label>
-
-        <div className="relative">
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-ink-900/60"
-          >
-            $
-          </span>
-
-          <input
-            id="budget-per-plate"
-            type="number"
-            inputMode="decimal"
-            min="0.01"
-            max={MAX_BUDGET}
-            step="0.01"
-            required
-            value={budgetInput}
-            onChange={(event) => onBudgetChange(event.target.value)}
-            placeholder="e.g. 2.50"
-            aria-invalid={Boolean(budgetError)}
-            aria-describedby={
-              budgetError
-                ? "budget-help budget-error"
-                : "budget-help"
-            }
-            className="min-h-12 w-full rounded-lg border border-ink-900/20 bg-white py-2 pl-8 pr-3 text-ink-900 focus:border-clay-500 focus:outline-none focus:ring-2 focus:ring-clay-500/25"
-          />
-        </div>
-
-        <p
-          id="budget-help"
-          className="mt-2 text-xs leading-5 text-ink-900/60"
-        >
-          Suggest what you are comfortable paying for one plate.
-          Cooks set their own offer prices, which may be higher or
-          lower than your budget. You decide whether to accept an offer.
-        </p>
-
-        {budgetError && (
-          <p
-            id="budget-error"
-            role="alert"
-            className="mt-2 text-sm text-red-700"
-          >
-            {budgetError}
-          </p>
-        )}
-      </div>
-
-      {result.notes.trim() && (
-        <p className="mt-4 rounded-lg border border-ink-900/10 px-4 py-3 text-sm leading-5 text-ink-900/75">
-          <span className="font-semibold text-ink-900">
-            Ziva&apos;s interpretation note:{" "}
-          </span>
-          {result.notes}
-        </p>
-      )}
-
-      <div className="mt-5 rounded-lg bg-cream-50 p-3">
-        <p className="text-xs font-medium text-ink-900/60">
-          Offer submission deadline
-        </p>
-
-        <p className="mt-1 text-sm font-semibold text-ink-900">
-          10:00 AM Harare time on your selected pickup date
-        </p>
-      </div>
-
-      <p className="mt-4 text-sm leading-6 text-ink-900/65">
-        Saving this request does not place an order or charge you. You&apos;ll
-        review cook offers and prices before deciding whether to order.
-      </p>
-
-      {saveError && (
-        <p
-          role="alert"
-          className="mt-4 rounded-lg border border-clay-500/25 bg-clay-500/5 px-4 py-3 text-sm leading-5 text-ink-900"
-        >
-          {saveError}
-        </p>
-      )}
-
-      <Button
-        type="button"
-        onClick={onSave}
-        disabled={
-          !pickupHub ||
-          !pickupDate ||
-          pickupDate < minPickupDate ||
-          parseBudgetInput(budgetInput) === null ||
-          saving
-        }
-        aria-busy={saving}
-        className="mt-5 min-h-12 w-full rounded-md text-base font-semibold disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        {saving ? "Submitting request..." : "Submit meal request"}
-      </Button>
-
-      <Button
-        type="button"
-        variant="secondary"
-        onClick={onEdit}
-        disabled={saving}
-        className="mt-4 min-h-12 w-full rounded-md text-base font-semibold"
-      >
-        Edit my request
-      </Button>
-    </section>
-  );
-}
-
-function SuccessPanel({
-  request,
-  onStartAnother,
-}: {
-  request: SavedMealRequest;
-  onStartAnother: () => void;
-}) {
-  return (
-    <section aria-labelledby="success-heading" aria-live="polite">
-      <p className="text-sm font-semibold text-sage-500">
-        Request saved
-      </p>
-
-      <h2
-        id="success-heading"
-        className="mt-2 font-display text-2xl tracking-tight text-ink-900 sm:text-3xl"
-      >
-        Your meal request is on its way.
-      </h2>
-
-      <p className="mt-3 text-sm leading-6 text-ink-900/65">
-        Your request has been saved. Approved cooks can now review it and
-        prepare offers for you.
-      </p>
-
-      <div className="mt-6 space-y-4 border-y border-ink-900/10 py-4">
-        <div>
-          <p className="text-xs font-medium text-ink-900/60">
-            Request reference
-          </p>
-
-          <p className="mt-1 break-all font-mono text-sm text-ink-900">
-            {request.id}
-          </p>
-        </div>
-
-        <div>
-          <p className="text-xs font-medium text-ink-900/60">
-            Pickup hub
-          </p>
-
-          <p className="mt-1 text-sm font-semibold text-ink-900">
-            {request.hub}
-          </p>
-        </div>
-
-        <div>
-          <p className="text-xs font-medium text-ink-900/60">
-            Pickup date and time
-          </p>
-
-          <p className="mt-1 text-sm font-semibold text-ink-900">
-            {request.pickup_date} at {request.pickup_time}
-          </p>
-        </div>
-
-        <div>
-          <p className="text-xs font-medium text-ink-900/60">
-            Offer deadline
-          </p>
-
-          <p className="mt-1 text-sm font-semibold text-ink-900">
-            {new Date(request.offers_close_at).toLocaleString("en-GB", {
-              timeZone: "Africa/Harare",
-              dateStyle: "medium",
-              timeStyle: "short",
-            })}{" "}
-            Harare time
-          </p>
-        </div>
-      </div>
-
-      <p className="mt-5 text-sm leading-6 text-ink-900/65">
-        No payment has been made. You will decide whether to accept an offer
-        after reviewing its price and details.
-      </p>
-
-      <Button
-        type="button"
-        onClick={onStartAnother}
-        className="mt-5 min-h-12 w-full rounded-lg text-base font-semibold"
-      >
-        Make another request
-      </Button>
+      {error && <p role="alert" className="mt-3 text-sm text-clay-600">{error}</p>}
+      {loading && <p role="status" className="mt-3 text-sm text-ink-900/60">Ziva is updating your meal…</p>}
+      <button type="button" onClick={onBack} disabled={loading} className="mt-5 min-h-10 text-sm font-medium text-ink-900/65 underline underline-offset-4">Change my description</button>
     </section>
   );
 }

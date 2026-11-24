@@ -22,9 +22,7 @@ export default function CustomerLayout({
         </div>
       }
     >
-      <AuthenticatedCustomerLayout>
-        {children}
-      </AuthenticatedCustomerLayout>
+      <AuthenticatedCustomerLayout>{children}</AuthenticatedCustomerLayout>
     </Suspense>
   );
 }
@@ -51,12 +49,18 @@ async function AuthenticatedCustomerLayout({
 
   return (
     <>
+      {/* Offsets the content for the desktop sidebar (15rem) and the mobile
+          bottom navigation. Scoped so it does not rely on new utilities. */}
+      <style>{`
+        .customer-content{padding-bottom:calc(4rem + env(safe-area-inset-bottom, 0px))}
+        @media (min-width:1024px){
+          .customer-content{padding-left:15rem;padding-bottom:0}
+        }
+      `}</style>
       <Suspense fallback={null}>
         <CustomerNavigation />
       </Suspense>
-      <div className="pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
-        {children}
-      </div>
+      <div className="customer-content">{children}</div>
     </>
   );
 }

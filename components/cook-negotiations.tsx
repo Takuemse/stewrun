@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 import { CalendarDays, Clock3, MapPin, RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 
 type RequestDetails = {
   id: string;
@@ -118,13 +117,21 @@ async function fetchNegotiations(): Promise<Counteroffer[]> {
   return payload.negotiations;
 }
 
-export default function CookNegotiations() {
+export default function CookNegotiations({
+  className = "",
+  onCountChange,
+}: {
+  className?: string;
+  /** Reports how many counter-offers are waiting (null while loading). */
+  onCountChange?: (count: number | null) => void;
+}) {
   const [negotiations, setNegotiations] = useState<Counteroffer[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [reasonById, setReasonById] = useState<Record<string, string>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [decliningId, setDecliningId] = useState<string | null>(null);
 
   const loadNegotiations = useCallback(async () => {
     setRefreshing(true);
@@ -172,6 +179,10 @@ export default function CookNegotiations() {
     };
   }, []);
 
+  useEffect(() => {
+    onCountChange?.(loading ? null : negotiations.length);
+  }, [loading, negotiations.length, onCountChange]);
+
   async function respond(
     negotiation: Counteroffer,
     decision: "accepted" | "rejected",
@@ -203,6 +214,7 @@ export default function CookNegotiations() {
       const payload: unknown = await response.json();
 
       if (!response.ok) throw new Error(getErrorMessage(payload));
+      setDecliningId(null);
       await loadNegotiations();
     } catch (responseError) {
       setError(
@@ -215,34 +227,38 @@ export default function CookNegotiations() {
     }
   }
 
+  const hasItems = !loading && negotiations.length > 0;
+
   return (
-    <section aria-labelledby="counteroffers-heading" className="mb-9">
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+    <section
+      aria-labelledby="counteroffers-heading"
+      className={`${className}${hasItems ? " ck-urgent" : ""}`}
+    >
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-clay-500">
-            Offer follow-up
+          <p className="ck-eyebrow" style={{ color: "#B4472B" }}>
+            {hasItems ? "Needs your decision" : "Offer follow-up"}
           </p>
           <h2
             id="counteroffers-heading"
-            className="mt-1 font-display text-2xl font-semibold text-ink-900"
+            className="mt-0.5 font-display text-xl font-semibold text-ink-900"
           >
             Customer counter-offers
           </h2>
         </div>
-        <Button
+        <button
           type="button"
-          variant="secondary"
           onClick={() => void loadNegotiations()}
           disabled={refreshing || savingId !== null}
-          className="min-h-10 rounded-md"
+          className="ck-outline"
         >
-          <RefreshCw aria-hidden="true" className="mr-2 size-4" />
+          <RefreshCw aria-hidden="true" className="mr-1.5 size-3.5" />
           {refreshing ? "Refreshing..." : "Refresh"}
-        </Button>
+        </button>
       </div>
 
       {error && (
-        <div className="mb-4 rounded-md border border-red-700/20 bg-red-50 p-4 text-sm text-red-800" role="alert">
+        <div className="mb-3 rounded-md border border-red-700/20 bg-red-50 p-4 text-sm text-red-800" role="alert">
           <p>{error}</p>
           <button
             type="button"
@@ -256,53 +272,66 @@ export default function CookNegotiations() {
       )}
 
       {loading && (
-        <Card className="border border-ink-900/10 shadow-none">
+        <div className="ck-card">
           <p className="flex items-center gap-2 text-sm text-ink-900/60" role="status">
             <RefreshCw aria-hidden="true" className="size-4 animate-spin" />
             Loading customer counter-offers...
           </p>
-        </Card>
+        </div>
       )}
 
       {!loading && negotiations.length === 0 && !error && (
-        <Card className="border border-dashed border-ink-900/15 bg-white text-sm text-ink-900/65 shadow-none">
+        <div className="ck-card text-sm leading-6 text-ink-900/65" style={{ border: "1px dashed rgba(42,33,28,.15)", boxShadow: "none" }}>
           No pending counter-offers. Customer replies to your offers will
           appear here.
-        </Card>
+        </div>
       )}
 
-      {!loading && negotiations.length > 0 && (
-        <ul className="grid gap-3">
+      {hasItems && (
+        <ul className="grid gap-3" style={{ listStyle: "none", margin: 0, padding: 0 }}>
           {negotiations.map((negotiation) => {
             const request = negotiation.request;
+            const plates = request?.items.reduce((sum, item) => sum + item.quantity, 0);
+            const declining = decliningId === negotiation.id;
 
             return (
               <li key={negotiation.id}>
-                <Card className="border border-ink-900/10 p-4 shadow-none sm:p-5">
-                  <div className="flex flex-col justify-between gap-3 sm:flex-row">
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-ink-900/50">
-                        Customer counter-offer
-                      </p>
-                      <h3 className="mt-1 break-words font-semibold text-ink-900">
-                        {request?.items
-                          .map((item) => `${item.quantity} × ${item.name}`)
-                          .join(", ") || "Meal request details unavailable"}
-                      </h3>
-                    </div>
-                    <span className="w-fit rounded-md bg-saffron-500/10 px-3 py-1.5 text-sm font-semibold text-ink-900">
-                      Proposed {formatCurrency(negotiation.proposed_total)}
-                    </span>
-                  </div>
-
-                  {negotiation.offer && (
-                    <p className="mt-3 text-sm text-ink-900/70">
-                      Your submitted offer:{" "}
-                      <span className="font-semibold text-ink-900">
-                        {formatCurrency(negotiation.offer.total_price)}
-                      </span>
+                <div className="ck-urgent-card">
+                  <h3 className="font-display text-xl font-semibold text-ink-900">
+                    Customer counter-offer
+                  </h3>
+                  <p
+                    className="mt-1 text-sm font-semibold text-ink-900"
+                    style={{ overflowWrap: "anywhere" }}
+                  >
+                    {request?.items
+                      .map((item) => `${item.quantity} × ${item.name}`)
+                      .join(", ") || "Meal request details unavailable"}
+                  </p>
+                  {request && (
+                    <p className="mt-1 text-xs leading-5 text-ink-900/65">
+                      {request.hub} · {formatDate(request.pickup_date)} ·{" "}
+                      {request.pickup_time.slice(0, 5)}
+                      {plates ? ` · ${plates} ${plates === 1 ? "plate" : "plates"}` : ""}
                     </p>
                   )}
+
+                  <div className="ck-pair">
+                    <div>
+                      <small>Your offer</small>
+                      <b className="font-display">
+                        {negotiation.offer
+                          ? formatCurrency(negotiation.offer.total_price)
+                          : "–"}
+                      </b>
+                    </div>
+                    <div>
+                      <small>Customer proposes</small>
+                      <b className="font-display">
+                        {formatCurrency(negotiation.proposed_total)}
+                      </b>
+                    </div>
+                  </div>
 
                   {negotiation.message && (
                     <p className="mt-3 whitespace-pre-wrap rounded-md bg-cream-50 p-3 text-sm leading-5 text-ink-900/70">
@@ -311,26 +340,26 @@ export default function CookNegotiations() {
                   )}
 
                   {request && (
-                    <dl className="mt-4 grid grid-cols-1 gap-3 border-y border-ink-900/10 py-3 min-[400px]:grid-cols-3">
+                    <dl className="mt-3 grid grid-cols-1 gap-2 border-y border-ink-900/10 py-3 text-sm">
                       <div className="flex items-start gap-2">
                         <MapPin aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-clay-500" />
-                        <div>
-                          <dt className="text-xs text-ink-900/55">Pickup hub</dt>
-                          <dd className="text-sm font-medium text-ink-900">{request.hub}</dd>
+                        <div className="flex flex-wrap gap-x-2">
+                          <dt className="text-ink-900/55">Pickup hub</dt>
+                          <dd className="font-medium text-ink-900">{request.hub}</dd>
                         </div>
                       </div>
                       <div className="flex items-start gap-2">
                         <CalendarDays aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-clay-500" />
-                        <div>
-                          <dt className="text-xs text-ink-900/55">Pickup date</dt>
-                          <dd className="text-sm font-medium text-ink-900">{formatDate(request.pickup_date)}</dd>
+                        <div className="flex flex-wrap gap-x-2">
+                          <dt className="text-ink-900/55">Pickup date</dt>
+                          <dd className="font-medium text-ink-900">{formatDate(request.pickup_date)}</dd>
                         </div>
                       </div>
                       <div className="flex items-start gap-2">
                         <Clock3 aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-clay-500" />
-                        <div>
-                          <dt className="text-xs text-ink-900/55">Pickup time</dt>
-                          <dd className="text-sm font-medium text-ink-900">{request.pickup_time.slice(0, 5)}</dd>
+                        <div className="flex flex-wrap gap-x-2">
+                          <dt className="text-ink-900/55">Pickup time</dt>
+                          <dd className="font-medium text-ink-900">{request.pickup_time.slice(0, 5)}</dd>
                         </div>
                       </div>
                     </dl>
@@ -342,46 +371,77 @@ export default function CookNegotiations() {
                     </p>
                   )}
 
-                  <label className="mt-4 block space-y-1.5 text-sm font-medium text-ink-900">
-                    Reason, if declining
-                    <textarea
-                      value={reasonById[negotiation.id] ?? ""}
-                      onChange={(event) =>
-                        setReasonById((current) => ({
-                          ...current,
-                          [negotiation.id]: event.target.value,
-                        }))
-                      }
-                      maxLength={500}
-                      rows={2}
-                      disabled={savingId !== null}
-                      className="w-full rounded-md border border-ink-900/20 bg-white px-3 py-2 text-sm font-normal text-ink-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay-500"
-                    />
-                    <span className="block text-xs font-normal text-ink-900/55">
-                      A reason of at least 3 characters is required to decline.
-                    </span>
-                  </label>
+                  {declining && (
+                    <label className="mt-4 block space-y-1.5 text-sm font-medium text-ink-900">
+                      Reason for declining
+                      <textarea
+                        value={reasonById[negotiation.id] ?? ""}
+                        onChange={(event) =>
+                          setReasonById((current) => ({
+                            ...current,
+                            [negotiation.id]: event.target.value,
+                          }))
+                        }
+                        maxLength={500}
+                        rows={3}
+                        disabled={savingId !== null}
+                        className="w-full rounded-md border border-ink-900/20 bg-white px-3 py-2 text-base font-normal text-ink-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay-500"
+                      />
+                      <span className="block text-xs font-normal text-ink-900/55">
+                        A reason of at least 3 characters is required to decline.
+                      </span>
+                    </label>
+                  )}
 
-                  <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      disabled={savingId !== null}
-                      onClick={() => void respond(negotiation, "rejected")}
-                      className="min-h-11 rounded-md"
-                    >
-                      {savingId === negotiation.id ? "Updating..." : "Decline with reason"}
-                    </Button>
-                    <Button
-                      type="button"
-                      disabled={savingId !== null}
-                      onClick={() => void respond(negotiation, "accepted")}
-                      className="min-h-11 rounded-md"
-                    >
-                      {savingId === negotiation.id ? "Updating..." : "Accept counter-offer"}
-                    </Button>
-                  </div>
-                </Card>
+                  {declining ? (
+                    <div className="ck-actions">
+                      <button
+                        type="button"
+                        className="ck-outline"
+                        disabled={savingId !== null}
+                        onClick={() => setDecliningId(null)}
+                      >
+                        Back
+                      </button>
+                      <Button
+                        type="button"
+                        disabled={savingId !== null}
+                        onClick={() => void respond(negotiation, "rejected")}
+                        className="min-h-11"
+                        style={{ borderRadius: 999 }}
+                      >
+                        {savingId === negotiation.id ? "Updating..." : "Decline with reason"}
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="ck-actions">
+                        <Button
+                          type="button"
+                          disabled={savingId !== null}
+                          onClick={() => void respond(negotiation, "accepted")}
+                          aria-label="Accept counter-offer"
+                          className="min-h-11"
+                          style={{ borderRadius: 999 }}
+                        >
+                          {savingId === negotiation.id ? "Updating..." : "Accept"}
+                        </Button>
+                        <button
+                          type="button"
+                          className="ck-outline"
+                          disabled={savingId !== null}
+                          onClick={() => setDecliningId(negotiation.id)}
+                          aria-label="Decline counter-offer"
+                        >
+                          Decline
+                        </button>
+                      </div>
+                      <p className="mt-2 text-xs leading-5 text-ink-900/55">
+                        Declining asks for a reason, 3 to 500 characters.
+                      </p>
+                    </>
+                  )}
+                </div>
               </li>
             );
           })}

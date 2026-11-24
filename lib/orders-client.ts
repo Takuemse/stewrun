@@ -1,3 +1,4 @@
+
 export interface CustomerOrder {
   id: string;
   total: number | string;
@@ -9,6 +10,10 @@ export interface CustomerOrder {
   reservation_expires_at: string | null;
   pickup_code?: string | null;
   cash_payment_status?: "due" | "paid" | null;
+  meal_subtotal?: number | string | null;
+  original_offer_total?: number | string | null;
+  negotiated_discount?: number | string | null;
+  platform_fee?: number | string | null;
   items?: CustomerOrderItem[];
   cook_display_name?: string | null;
 }
@@ -52,6 +57,25 @@ function isValidAmount(value: unknown): value is number | string {
   );
 }
 
+function isValidNonNegativeAmount(
+  value: unknown,
+): value is number | string {
+  if (typeof value === "number") {
+    return Number.isFinite(value) && value >= 0;
+  }
+
+  return (
+    typeof value === "string" &&
+    /^\d{1,10}(?:\.\d{1,2})?$/.test(value) &&
+    Number(value) >= 0
+  );
+}
+
+function isOptionalNullableAmount(value: unknown): boolean {
+  return value === undefined || value === null ||
+    isValidNonNegativeAmount(value);
+}
+
 function isNullableString(value: unknown): value is string | null {
   return value === null || typeof value === "string";
 }
@@ -80,6 +104,10 @@ function isCustomerOrder(value: unknown): value is CustomerOrder {
       value.cash_payment_status === null ||
       value.cash_payment_status === "due" ||
       value.cash_payment_status === "paid") &&
+    isOptionalNullableAmount(value.meal_subtotal) &&
+    isOptionalNullableAmount(value.original_offer_total) &&
+    isOptionalNullableAmount(value.negotiated_discount) &&
+    isOptionalNullableAmount(value.platform_fee) &&
     validItems &&
     (value.cook_display_name === undefined ||
       isNullableString(value.cook_display_name))

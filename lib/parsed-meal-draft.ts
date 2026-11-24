@@ -3,6 +3,9 @@ export const PARSED_MEAL_DRAFT_KEY = "stewrun:parsed-meal-draft:v1";
 export interface ParsedMealDraft {
   description: string;
   items: Array<{ name: string; quantity: number }>;
+  hub?: "Eastgate" | "Joina City" | "Avondale";
+  pickupTime?: string;
+  budget?: number | null;
 }
 
 function isParsedMealDraft(value: unknown): value is ParsedMealDraft {
@@ -10,6 +13,9 @@ function isParsedMealDraft(value: unknown): value is ParsedMealDraft {
   const draft = value as Record<string, unknown>;
   return typeof draft.description === "string" && draft.description.trim().length > 0 &&
     Array.isArray(draft.items) && draft.items.length > 0 && draft.items.length <= 20 &&
+    (draft.hub === undefined || draft.hub === "Eastgate" || draft.hub === "Joina City" || draft.hub === "Avondale") &&
+    (draft.pickupTime === undefined || (typeof draft.pickupTime === "string" && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(draft.pickupTime))) &&
+    (draft.budget === undefined || draft.budget === null || (typeof draft.budget === "number" && Number.isFinite(draft.budget) && draft.budget > 0 && Math.abs(draft.budget * 100 - Math.round(draft.budget * 100)) < 0.000001)) &&
     draft.items.every((item) => {
       if (typeof item !== "object" || item === null) return false;
       const meal = item as Record<string, unknown>;

@@ -1,13 +1,12 @@
-
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 
-import AccountSignOut from "@/components/account-sign-out";
-import { BrandLogo } from "@/components/brand-logo";
-import NotificationBell from "@/components/notification-bell";
+import AccountMenu from "@/components/account-menu";
 import CookNegotiations from "@/components/cook-negotiations";
+import CookShell, { cookAccountLinks } from "@/components/cook-shell";
+import NotificationBell from "@/components/notification-bell";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -88,6 +87,20 @@ function formatPickupDate(date: string) {
   }).format(parsedDate);
 }
 
+function formatPickupDateShort(date: string) {
+  const parsedDate = new Date(`${date}T12:00:00+02:00`);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return date;
+  }
+
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Africa/Harare",
+    day: "numeric",
+    month: "short",
+  }).format(parsedDate);
+}
+
 function formatPickupTime(time: string) {
   return time.slice(0, 5);
 }
@@ -115,6 +128,24 @@ function formatMoney(amount: number) {
 
 function createDraftKey() {
   return globalThis.crypto.randomUUID();
+}
+
+function DateTile({ date }: { date: string }) {
+  const parsed = new Date(`${date}T12:00:00+02:00`);
+  if (Number.isNaN(parsed.getTime())) return null;
+  const format = (options: Intl.DateTimeFormatOptions) =>
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Africa/Harare",
+      ...options,
+    }).format(parsed);
+
+  return (
+    <div aria-hidden="true" className="ck-date">
+      <span>{format({ weekday: "short" }).toUpperCase()}</span>
+      <b className="font-display">{format({ day: "numeric" })}</b>
+      <span>{format({ month: "short" }).toUpperCase()}</span>
+    </div>
+  );
 }
 
 async function fetchCookRequests(): Promise<{
@@ -150,20 +181,26 @@ async function fetchSubmittedOffers(): Promise<SubmittedOffer[]> {
 export default function CookPage() {
   const [requests, setRequests] = useState<MealRequest[]>([]);
   const [submittedOffers, setSubmittedOffers] = useState<SubmittedOffer[]>([]);
+  const [submittedLoaded, setSubmittedLoaded] = useState(false);
+  const [negotiationCount, setNegotiationCount] = useState<number | null>(null);
   const [requestsPaused, setRequestsPaused] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  const [greeting, setGreeting] = useState("Hello");
 
   const [menu, setMenu] = useState<MenuItem[]>([]);
   const [menuLoaded, setMenuLoaded] = useState(false);
   const [menuLoading, setMenuLoading] = useState(false);
   const [menuError, setMenuError] = useState("");
   const [menuRetry, setMenuRetry] = useState(0);
+  const [stripLoading, setStripLoading] = useState(true);
+  const [stripError, setStripError] = useState("");
 
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(
     null,
   );
+  const composerRef = useRef<HTMLElement>(null);
 
   const [draftItems, setDraftItems] = useState<OfferDraftItem[]>([]);
   const [menuSelection, setMenuSelection] = useState("");
@@ -192,6 +229,20 @@ export default function CookPage() {
 
     return total + quantity * price;
   }, 0);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      const hour = new Date().getHours();
+      setGreeting(
+        hour >= 5 && hour < 12
+          ? "Good morning"
+          : hour >= 12 && hour < 18
+            ? "Good afternoon"
+            : "Good evening",
+      );
+    }, 0);
+    return () => window.clearTimeout(timeout);
+  }, []);
 
   // Load requests when the page first mounts.
   useEffect(() => {
@@ -233,8 +284,44 @@ export default function CookPage() {
       if (!cancelled) setSubmittedOffers(offers);
     }).catch(() => {
       // Keep the incoming request feed usable if this secondary list fails.
+    }).finally(() => {
+      if (!cancelled) setSubmittedLoaded(true);
     });
     return () => { cancelled = true; };
+  }, []);
+
+  // Load the saved menu for the "Your menu" card. If this fails, the offer
+  // composer below still retries the menu when it is opened.
+  useEffect(() => {
+    let cancelled = false;
+
+    void fetch("/api/cook/menu", { method: "GET", cache: "no-store" })
+      .then(async (response) => {
+        const result: MenuResponse = await response.json();
+        if (!response.ok) {
+          throw new Error(result.error || "Unable to load your menu.");
+        }
+        if (!cancelled) {
+          setMenu(result.menu ?? []);
+          setMenuLoaded(true);
+          setMenuLoading(false);
+          setStripError("");
+        }
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setStripError(
+            err instanceof Error ? err.message : "Unable to load your menu.",
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setStripLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Load the cook's available menu when the offer composer is opened.
@@ -283,6 +370,18 @@ export default function CookPage() {
     };
   }, [selectedRequestId, menuLoaded, menuRetry]);
 
+  // Bring the offer composer into view when a request is chosen.
+  useEffect(() => {
+    if (!selectedRequestId) return;
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    composerRef.current?.scrollIntoView({
+      behavior: reduceMotion ? "auto" : "smooth",
+      block: "start",
+    });
+  }, [selectedRequestId]);
+
   async function handleRefresh() {
     setRefreshing(true);
     setError("");
@@ -304,7 +403,14 @@ export default function CookPage() {
 
   function handlePrepareOffer(request: MealRequest) {
     setSelectedRequestId(request.id);
-    setDraftItems([]);
+    setDraftItems(request.items.map((item) => ({
+      key: createDraftKey(),
+      menu_item_id: null,
+      name: item.name,
+      description: "",
+      quantity: String(item.quantity),
+      unit_price: "",
+    })));
     setMenuSelection("");
     setMessage("");
     setIsAlternative(false);
@@ -405,20 +511,19 @@ export default function CookPage() {
       return "Please select a meal request.";
     }
 
-    if (draftItems.length !== 1) {
-      return "Describe one complete meal for this offer.";
+    if (isAlternative && draftItems.length !== 1) {
+      return "Describe one complete alternative meal for this offer.";
+    }
+
+    if (!isAlternative && draftItems.length !== selectedRequest.items.length) {
+      return "Add an offer for each meal the customer requested.";
     }
 
     if (message.length > 1000) {
       return "Your message cannot exceed 1000 characters.";
     }
 
-    const requestedQuantity = Math.max(
-      1,
-      ...selectedRequest.items.map((item) => item.quantity),
-    );
-
-    for (const item of draftItems) {
+    for (const [index, item] of draftItems.entries()) {
       const quantity = Number(item.quantity);
       const price = Number(item.unit_price);
 
@@ -430,8 +535,11 @@ export default function CookPage() {
         return "Each meal quantity must be a whole number between 1 and 20.";
       }
 
-      if (!isAlternative && quantity !== requestedQuantity) {
-        return `Standard offers must cover all ${requestedQuantity} requested plates. Mark this as an alternative if you are offering a different quantity or meal.`;
+      if (!isAlternative && (
+        quantity !== selectedRequest.items[index]?.quantity ||
+        item.name.trim().toLocaleLowerCase() !== selectedRequest.items[index]?.name.trim().toLocaleLowerCase()
+      )) {
+        return "Standard offers must match each requested meal and its plate count. Mark a different meal as an alternative.";
       }
 
       if (
@@ -450,6 +558,9 @@ export default function CookPage() {
 
         if (item.description.length > 500) {
           return "Meal descriptions cannot exceed 500 characters.";
+        }
+        if (!isAlternative && item.description.trim().length === 0) {
+          return "Describe what is included in each complete plate.";
         }
       }
     }
@@ -546,764 +657,886 @@ export default function CookPage() {
     }
   }
 
+  const availabilityKind = loading
+    ? "unknown"
+    : error
+      ? "unknown"
+      : requestsPaused
+        ? "paused"
+        : "open";
+  const availabilityLabel = loading
+    ? "Checking availability…"
+    : error
+      ? "Availability unknown"
+      : requestsPaused
+        ? "Requests paused"
+        : "Accepting requests";
+
   return (
-    <main className="min-h-screen bg-cream-50">
-      <header className="border-b border-ink-900/10 bg-white">
-        <div className="mx-auto flex min-h-16 max-w-7xl flex-wrap items-center justify-between gap-3 px-5 py-3 sm:px-8">
-          <Link
-            href="/"
-            aria-label="StewRun home"
-            className="inline-flex items-center focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-clay-500"
-          >
-            <BrandLogo className="h-[42px] w-[150px]" />
-          </Link>
-
-          <div className="flex flex-wrap items-center justify-end gap-3 sm:gap-5">
-            <span className="text-sm font-medium text-ink-900/65">
-              Cook workspace
-            </span>
-            <Link
-              href="/cook"
-              aria-current="page"
-              className="inline-flex min-h-10 items-center rounded-md border border-ink-900/10 px-3 text-sm font-semibold text-ink-900 hover:border-ink-900/25 hover:bg-cream-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay-500"
-            >
-              Requests
-            </Link>
-            <Link
-              href="/cook/orders"
-              className="inline-flex min-h-10 items-center rounded-md border border-ink-900/10 px-3 text-sm font-semibold text-ink-900 hover:border-ink-900/25 hover:bg-cream-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay-500"
-            >
-              Orders
-            </Link>
-            <Link
-              href="/cook/menu"
-              className="inline-flex min-h-10 items-center rounded-md border border-ink-900/10 px-3 text-sm font-semibold text-ink-900 hover:border-ink-900/25 hover:bg-cream-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay-500"
-            >
-              Menu
-            </Link>
-            <Link
-              href="/cook/profile"
-              className="inline-flex min-h-10 items-center rounded-md border border-ink-900/10 px-3 text-sm font-semibold text-ink-900 hover:border-ink-900/25 hover:bg-cream-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay-500"
-            >
-              Profile
-            </Link>
-            <NotificationBell />
-            <Link
-              href="/"
-              className="hidden min-h-10 items-center text-sm font-medium text-ink-900 hover:text-clay-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay-500 sm:inline-flex"
-            >
-              Home
-            </Link>
-            <AccountSignOut />
-          </div>
-        </div>
-      </header>
-
-      <section className="mx-auto max-w-7xl px-5 py-8 sm:px-8 sm:py-10">
-        <div className="mb-7 flex flex-col justify-between gap-4 border-b border-ink-900/10 pb-6 sm:flex-row sm:items-end">
-          <div className="min-w-0">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-clay-500">
-              Cook workspace
-            </p>
-            <h1 className="font-display text-3xl font-semibold tracking-tight text-ink-900 sm:text-4xl">
-              Incoming meal requests
-            </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-900/65">
-              Review what customers are looking for and prepare an offer that
-              fits your kitchen.
-            </p>
-          </div>
-          <Button
-            variant="secondary"
-            onClick={handleRefresh}
-            disabled={loading || refreshing}
-            className="w-full shrink-0 sm:w-auto"
-          >
-            {refreshing ? "Refreshing..." : "Refresh requests"}
-          </Button>
-        </div>
-
-        {success && (
-          <div
-            role="status"
-            className="mb-6 rounded-md border border-sage-500/30 bg-sage-500/10 p-4 text-sm text-sage-500"
-          >
-            {success}
-          </div>
-        )}
-
-        {requestsPaused && (
-          <div className="mb-6 rounded-md border border-saffron-500/30 bg-saffron-500/10 p-4 text-sm leading-6 text-ink-900/75">
-            Your cook profile is paused. New meal requests are hidden and new
-            offers are disabled. Update availability in{" "}
-            <Link
-              href="/cook/profile"
-              className="font-semibold text-clay-500 underline underline-offset-2"
-            >
-              your profile
-            </Link>
-            .
-          </div>
-        )}
-
-        <CookNegotiations />
-
-        {submittedOffers.length > 0 && (
-          <section className="mb-8" aria-labelledby="submitted-offers-heading">
-            <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-              <h2 id="submitted-offers-heading" className="font-display text-2xl font-semibold text-ink-900">Offers waiting for a customer</h2>
-              <span className="text-sm text-ink-900/60">{submittedOffers.length} awaiting a choice</span>
-            </div>
-            <div className="grid gap-3">
-              {submittedOffers.map((offer) => (
-                <Card key={offer.id} className="border border-sage-500/20 bg-white p-4 shadow-none sm:p-5">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <h3 className="font-semibold text-ink-900">{offer.items[0]?.name || "Your meal offer"}</h3>
-                      <p className="mt-1 text-sm text-ink-900/65">For {offer.request.items.map((item) => `${item.quantity} × ${item.name}`).join(", ")}</p>
-                      <p className="mt-2 text-xs text-ink-900/60">{offer.request.hub} · {formatPickupDate(offer.request.pickup_date)} · {formatPickupTime(offer.request.pickup_time)}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-semibold text-ink-900">{formatMoney(Number(offer.items[0]?.unit_price) || 0)} / plate</p>
-                      <p className="text-xs text-ink-900/60">{formatMoney(Number(offer.total_price))} total</p>
-                      <span className="mt-2 inline-flex rounded-full bg-saffron-500/15 px-2.5 py-1 text-xs font-semibold text-ink-900">Waiting for customer</span>
-                    </div>
-                  </div>
-                  {offer.items[0]?.description && <p className="mt-3 border-t border-ink-900/10 pt-3 text-sm leading-5 text-ink-900/70">{offer.items[0].description}</p>}
-                </Card>
-              ))}
-            </div>
-          </section>
-        )}
-
-        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="font-display text-2xl font-semibold text-ink-900">
-            Open requests
-          </h2>
-          <p className="text-sm text-ink-900/60">
-            {requests.length} {requests.length === 1 ? "request" : "requests"}
-          </p>
-        </div>
-
-        {loading && (
-          <Card className="border border-ink-900/10 shadow-none">
-            <p role="status" className="text-sm text-ink-900/60">
-              Loading meal requests...
-            </p>
-          </Card>
-        )}
-
-        {!loading && error && (
-          <Card className="border border-red-700/20 shadow-none">
-            <div className="space-y-3">
-              <h3 className="font-semibold text-ink-900">
-                Unable to load requests
-              </h3>
-
-              <p className="text-sm text-red-700">{error}</p>
-
-              {error === "Authentication required." && (
-                <Link
-                  href="/login"
-                  className="inline-block text-sm font-medium text-clay-500 underline"
-                >
-                  Sign in to continue
-                </Link>
-              )}
-
-              <div>
-                <Button onClick={handleRefresh} disabled={refreshing}>
-                  Try again
-                </Button>
+    <CookShell desktopActions={false}>
+      <main className="min-h-screen bg-cream-50">
+        {/* Circle sized and placed like the Offerings and Profile banners. */}
+        <style>{`.ck-hero-bg::after{width:340px;height:340px;right:-90px;top:-150px}`}</style>
+        <div className="ck-wrap">
+          {/* Hero */}
+          <header className="ck-hero">
+            <div className="ck-hero-bg" aria-hidden="true" />
+            <div className="ck-hero-top">
+              <span
+                className={`ck-pill${availabilityKind === "paused" ? " is-paused" : availabilityKind === "unknown" ? " is-unknown" : ""}`}
+              >
+                <i aria-hidden="true" />
+                {availabilityLabel}
+              </span>
+              <div className="ck-hero-actions">
+                <NotificationBell />
+                <AccountMenu links={cookAccountLinks} />
               </div>
             </div>
-          </Card>
-        )}
 
-        {!loading && !error && requests.length === 0 && (
-          <Card className="border border-ink-900/10 py-12 text-center shadow-none">
-            <div className="mx-auto max-w-md">
-              <h3 className="font-display text-xl font-semibold text-ink-900">
-                {requestsPaused ? "Your profile is paused" : "No open requests yet"}
-              </h3>
+            <div className="ck-hero-body">
+              <div>
+                <p className="ck-eyebrow">Your kitchen</p>
+                <h1 className="ck-h1 font-display tracking-tight text-ink-900">
+                  {greeting}, <span className="text-clay-500">chef.</span>
+                </h1>
+                <span
+                  aria-hidden="true"
+                  className="mt-4 block h-1 w-14 rounded-full bg-saffron-500"
+                />
+                <p className="mt-3 max-w-sm text-sm leading-6 text-ink-900/75">
+                  Here is what is waiting for you in the kitchen.
+                </p>
+              </div>
 
-              <p className="mt-3 text-sm leading-6 text-ink-900/60">
-                {requestsPaused
-                  ? "Resume availability in your profile to see new meal requests."
-                  : "New customer meal requests will appear here when they become available. Check back shortly."}
-              </p>
-
-              <Button
-                variant="secondary"
-                className="mt-6"
-                onClick={handleRefresh}
-                disabled={refreshing}
-              >
-                {refreshing ? "Checking..." : "Check again"}
-              </Button>
+              <div className="ck-tiles" role="group" aria-label="Kitchen summary">
+                <div className="ck-tile">
+                  <b className="font-display">{loading || error ? "–" : requests.length}</b>
+                  <span>Open requests</span>
+                </div>
+                <div className="ck-tile">
+                  <b className="font-display">{negotiationCount ?? "–"}</b>
+                  <span>Counter-offers</span>
+                </div>
+                <div className="ck-tile is-tint">
+                  <b className="font-display">{submittedLoaded ? submittedOffers.length : "–"}</b>
+                  <span>Offers waiting</span>
+                </div>
+              </div>
             </div>
-          </Card>
-        )}
+          </header>
 
-        {!loading && !error && requests.length > 0 && (
-          <div className="grid min-w-0 gap-4 xl:grid-cols-2">
-            {requests.map((request) => (
-              <Card
-                key={request.id}
-                className="min-w-0 space-y-5 border border-ink-900/10 bg-white shadow-none"
+          <div className="ck-grid">
+            <div className="ck-main">
+              {success && (
+                <div
+                  role="status"
+                  className="ck-i-banner rounded-md border border-sage-500/30 bg-sage-500/10 p-4 text-sm text-sage-500"
+                >
+                  {success}
+                </div>
+              )}
+
+              {/* Incoming meal requests */}
+              <section
+                className="ck-card ck-i-requests"
+                aria-labelledby="requests-heading"
               >
-                <div className="flex min-w-0 items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-clay-500">
-                      Pickup hub
-                    </p>
-                    <h3 className="mt-1 break-words font-display text-xl font-semibold text-ink-900">
-                      {request.hub}
-                    </h3>
-                  </div>
-                  <span className="shrink-0 rounded-md bg-sage-500/10 px-2.5 py-1 text-xs font-medium text-sage-500">
-                    Open
-                  </span>
-                </div>
-
-                <dl className="grid grid-cols-2 gap-x-4 gap-y-4 border-y border-ink-900/10 py-4 sm:grid-cols-4">
-                  <div className="min-w-0">
-                    <dt className="text-xs text-ink-900/55">Pickup date</dt>
-                    <dd className="mt-1 break-words text-sm font-medium text-ink-900">
-                      {formatPickupDate(request.pickup_date)}
-                    </dd>
-                  </div>
-                  <div className="min-w-0">
-                    <dt className="text-xs text-ink-900/55">Pickup time</dt>
-                    <dd className="mt-1 text-sm font-medium text-ink-900">
-                      {formatPickupTime(request.pickup_time)}
-                    </dd>
-                  </div>
-                  <div className="min-w-0">
-                    <dt className="text-xs text-ink-900/55">
-                      Target per plate
-                    </dt>
-                    <dd className="mt-1 break-words text-sm font-medium text-ink-900">
-                      {request.budget !== null
-                        ? formatMoney(Number(request.budget))
-                        : "Not specified"}
-                    </dd>
-                    <p className="mt-1 text-xs leading-5 text-ink-900/55">
-                      Customer guide, not a price cap
-                    </p>
-                  </div>
-                  <div className="min-w-0">
-                    <dt className="text-xs text-ink-900/55">Offer deadline</dt>
-                    <dd className="mt-1 break-words text-sm font-medium text-ink-900">
-                      {request.offers_close_at
-                        ? formatDeadline(request.offers_close_at) ??
-                          "Deadline unavailable"
-                        : "Not specified"}
-                    </dd>
-                  </div>
-                </dl>
-
-                <div className="min-w-0">
-                  <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-                    <h4 className="text-sm font-semibold text-ink-900">
-                      Requested meals
-                    </h4>
-                    <span className="text-xs text-ink-900/55">
-                      {request.items.length}{" "}
-                      {request.items.length === 1 ? "item type" : "item types"}
+                <div className="ck-card-head">
+                  <h2
+                    id="requests-heading"
+                    className="ck-title font-display text-xl font-semibold text-ink-900 sm:text-2xl"
+                  >
+                    Incoming meal requests
+                    <span className="ck-chip">
+                      {requests.length} open
                     </span>
-                  </div>
-                  <ul className="divide-y divide-ink-900/10 border-y border-ink-900/10">
-                    {request.items.map((item, index) => (
-                      <li
-                        key={`${request.id}-${index}`}
-                        className="flex min-w-0 items-start justify-between gap-3 py-2.5 text-sm"
-                      >
-                        <span className="min-w-0 break-words text-ink-900/80">
-                          {item.name}
-                        </span>
-                        <span className="shrink-0 font-medium text-ink-900">
-                          × {item.quantity}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
+                  </h2>
+                  <button
+                    type="button"
+                    className="ck-outline"
+                    onClick={handleRefresh}
+                    disabled={loading || refreshing}
+                  >
+                    {refreshing ? "Refreshing..." : "Refresh"}
+                  </button>
                 </div>
 
-                {request.notes && (
-                  <div className="min-w-0 rounded-md bg-cream-50 p-3">
-                    <p className="text-xs font-semibold text-ink-900/60">
-                      Customer notes
-                    </p>
-                    <p className="mt-1 break-words text-sm leading-6 text-ink-900/80">
-                      {request.notes}
-                    </p>
+                {loading && (
+                  <p role="status" className="mt-5 text-sm text-ink-900/60">
+                    Loading meal requests...
+                  </p>
+                )}
+
+                {!loading && error && (
+                  <div className="mt-5 space-y-3 rounded-md border border-red-700/20 p-4">
+                    <h3 className="font-semibold text-ink-900">
+                      Unable to load requests
+                    </h3>
+
+                    <p className="text-sm text-red-700">{error}</p>
+
+                    {error === "Authentication required." && (
+                      <Link
+                        href="/login"
+                        className="inline-block text-sm font-medium text-clay-500 underline"
+                      >
+                        Sign in to continue
+                      </Link>
+                    )}
+
+                    <div>
+                      <Button onClick={handleRefresh} disabled={refreshing}>
+                        Try again
+                      </Button>
+                    </div>
                   </div>
                 )}
 
-                <details className="border-t border-ink-900/10 pt-4">
-                  <summary className="cursor-pointer text-sm font-medium text-clay-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay-500">
-                    View request details
-                  </summary>
-                  <div className="mt-3 space-y-2 break-all text-xs text-ink-900/55">
-                    <p>Request ID: {request.id}</p>
-                    <p>
-                      Submitted:{" "}
-                      {new Date(request.created_at).toLocaleString("en-ZW")}
+                {!loading && !error && requests.length === 0 && (
+                  <div className="mx-auto mt-6 max-w-md py-6 text-center">
+                    <h3 className="font-display text-xl font-semibold text-ink-900">
+                      {requestsPaused ? "Your profile is paused" : "No open requests yet"}
+                    </h3>
+
+                    <p className="mt-3 text-sm leading-6 text-ink-900/60">
+                      {requestsPaused
+                        ? "Resume availability in your profile to see new meal requests."
+                        : "New customer meal requests will appear here when they become available. Check back shortly."}
+                    </p>
+
+                    <Button
+                      variant="secondary"
+                      className="mt-6"
+                      onClick={handleRefresh}
+                      disabled={refreshing}
+                    >
+                      {refreshing ? "Checking..." : "Check again"}
+                    </Button>
+                  </div>
+                )}
+
+                {!loading && !error && requests.length > 0 && (
+                  <ul className="ck-req-list">
+                    {requests.map((request) => {
+                      const plates = request.items.reduce(
+                        (sum, item) => sum + item.quantity,
+                        0,
+                      );
+                      const deadline = request.offers_close_at
+                        ? formatDeadline(request.offers_close_at)
+                        : null;
+
+                      return (
+                        <li key={request.id} className="ck-req">
+                          <DateTile date={request.pickup_date} />
+
+                          <div className="ck-req-main">
+                            <h3
+                              className="font-display text-lg font-semibold leading-snug text-ink-900"
+                              style={{ overflowWrap: "anywhere" }}
+                            >
+                              <span className="sr-only">Requested meals: </span>
+                              {request.items
+                                .map((item) => `${item.quantity} × ${item.name}`)
+                                .join(", ")}
+                            </h3>
+                            <p className="mt-1 text-xs leading-5 text-ink-900/65">
+                              {request.hub} · {formatPickupDateShort(request.pickup_date)}{" "}
+                              {formatPickupTime(request.pickup_time)}
+                              {deadline ? ` · offer by ${deadline}` : ""}
+                            </p>
+                            {request.notes && (
+                              <p className="mt-2 rounded-md bg-cream-50 p-2.5 text-sm leading-5 text-ink-900/80" style={{ overflowWrap: "anywhere" }}>
+                                <span className="font-semibold text-ink-900/60">Customer notes: </span>
+                                {request.notes}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="ck-req-side">
+                            <div>
+                              <p className="text-sm font-semibold text-ink-900">
+                                {plates} {plates === 1 ? "plate" : "plates"}
+                              </p>
+                              <p className="text-xs text-ink-900/65">
+                                {request.budget !== null
+                                  ? `Target ${formatMoney(Number(request.budget))} / plate`
+                                  : "No target set"}
+                              </p>
+                              <p className="text-[11px] text-ink-900/50">
+                                Customer guide, not a price cap
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              className="ck-solid"
+                              onClick={() => handlePrepareOffer(request)}
+                              disabled={submitting}
+                            >
+                              {selectedRequestId === request.id
+                                ? "Offer selected"
+                                : "Prepare offer →"}
+                            </button>
+                          </div>
+
+                          <details>
+                            <summary>View request details</summary>
+                            <div className="mt-2 space-y-3 text-sm">
+                              <ul className="divide-y divide-ink-900/10 border-y border-ink-900/10">
+                                {request.items.map((item, index) => (
+                                  <li
+                                    key={`${request.id}-${index}`}
+                                    className="flex min-w-0 items-start justify-between gap-3 py-2"
+                                  >
+                                    <span className="min-w-0 break-words text-ink-900/80">
+                                      {item.name}
+                                    </span>
+                                    <span className="shrink-0 font-medium text-ink-900">
+                                      × {item.quantity}
+                                    </span>
+                                  </li>
+                                ))}
+                              </ul>
+                              <p className="text-xs text-ink-900/60">
+                                Pickup {formatPickupDate(request.pickup_date)} at{" "}
+                                {formatPickupTime(request.pickup_time)}
+                              </p>
+                              <div className="space-y-1 break-all text-xs text-ink-900/55">
+                                <p>Request ID: {request.id}</p>
+                                <p>
+                                  Submitted:{" "}
+                                  {new Date(request.created_at).toLocaleString("en-ZW")}
+                                </p>
+                              </div>
+                            </div>
+                          </details>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+
+                {!loading && !error && requests.length > 0 && (
+                  <p className="mt-2 text-xs leading-5 text-ink-900/55">
+                    Prepare offer opens your offer composer below, with standard
+                    and alternative offers.
+                  </p>
+                )}
+              </section>
+
+              {selectedRequest && (
+                <section
+                  ref={composerRef}
+                  className="ck-i-composer"
+                  aria-labelledby="offer-heading"
+                >
+                  <div className="mb-5">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-clay-500">
+                      Offer preparation
+                    </p>
+                    <h2
+                      id="offer-heading"
+                      className="mt-1 font-display text-2xl font-semibold text-ink-900 sm:text-3xl"
+                    >
+                      Prepare your offer
+                    </h2>
+                    <p className="mt-2 max-w-2xl break-words text-sm leading-6 text-ink-900/65">
+                      For the {selectedRequest.hub} request, with pickup on{" "}
+                      {formatPickupDate(selectedRequest.pickup_date)} at{" "}
+                      {formatPickupTime(selectedRequest.pickup_time)}.
                     </p>
                   </div>
-                </details>
 
-                <Button
-                  className="min-h-11 w-full rounded-md font-semibold"
-                  onClick={() => handlePrepareOffer(request)}
-                  disabled={submitting}
-                >
-                  {selectedRequestId === request.id
-                    ? "Offer selected"
-                    : "Prepare offer"}
-                </Button>
-              </Card>
-            ))}
-          </div>
-        )}
+                  <Card className="border border-ink-900/10 bg-white shadow-none">
+                    <form
+                      onSubmit={handleSubmitOffer}
+                      className="grid min-w-0 gap-7 lg:grid-cols-[minmax(0,1.5fr)_minmax(17rem,0.8fr)] lg:gap-8"
+                    >
+                      <div className="min-w-0 space-y-7">
+                        <div className="rounded-md border border-sage-500/20 bg-sage-500/5 p-4">
+                          <p className="text-xs font-semibold uppercase tracking-wider text-sage-700">
+                            Customer requested
+                          </p>
+                          <ul className="mt-2 space-y-1 text-sm text-ink-900">
+                            {selectedRequest.items.map((item, index) => (
+                              <li key={`${selectedRequest.id}-offer-${index}`}>
+                                {item.quantity} plates · {item.name}
+                              </li>
+                            ))}
+                          </ul>
+                          <p className="mt-2 text-xs text-ink-900/60">
+                            Your standard offer must cover the requested plate count.
+                          </p>
+                        </div>
 
-        {selectedRequest && (
-          <section
-            className="mt-10 border-t border-ink-900/15 pt-8"
-            aria-labelledby="offer-heading"
-          >
-            <div className="mb-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-clay-500">
-                Offer preparation
-              </p>
-              <h2
-                id="offer-heading"
-                className="mt-1 font-display text-2xl font-semibold text-ink-900 sm:text-3xl"
-              >
-                Prepare your offer
-              </h2>
-              <p className="mt-2 max-w-2xl break-words text-sm leading-6 text-ink-900/65">
-                For the {selectedRequest.hub} request, with pickup on{" "}
-                {formatPickupDate(selectedRequest.pickup_date)} at{" "}
-                {formatPickupTime(selectedRequest.pickup_time)}.
-              </p>
-            </div>
+                        <section aria-labelledby="offer-meals-heading">
+                          <div className="mb-4">
+                            <h3
+                              id="offer-meals-heading"
+                              className="font-semibold text-ink-900"
+                            >
+                              Build one complete meal offer
+                            </h3>
+                            <p className="mt-1 text-sm leading-6 text-ink-900/60">
+                              Choose one saved meal or describe a complete meal. Set
+                              one price per plate so customers can compare offers fairly.
+                            </p>
+                          </div>
 
-            <Card className="border border-ink-900/10 bg-white shadow-none">
-              <form
-                onSubmit={handleSubmitOffer}
-                className="grid min-w-0 gap-7 lg:grid-cols-[minmax(0,1.5fr)_minmax(17rem,0.8fr)] lg:gap-8"
-              >
-                <div className="min-w-0 space-y-7">
-                  <div className="rounded-md border border-sage-500/20 bg-sage-500/5 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-sage-700">
-                      Customer requested
+                          {menuLoading && (
+                            <p role="status" className="mt-4 text-sm text-ink-900/60">
+                              Loading your menu...
+                            </p>
+                          )}
+
+                          {menuError && (
+                            <div className="mt-4 rounded-md border border-red-700/20 bg-red-50 p-3">
+                              <p className="break-words text-sm text-red-700">
+                                {menuError}
+                              </p>
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                className="mt-3"
+                                onClick={() => {
+                                  setMenuError("");
+                                  setMenuLoading(true);
+                                  setMenuRetry((current) => current + 1);
+                                }}
+                              >
+                                Retry menu
+                              </Button>
+                            </div>
+                          )}
+
+                          {!menuLoading && !menuError && menuLoaded && (
+                            <div className="mt-4">
+                              {isAlternative && menu.length > 0 ? (
+                                <div>
+                                  <label
+                                    htmlFor="offer-menu-item"
+                                    className="mb-1 block text-sm font-medium text-ink-900"
+                                  >
+                                    Saved menu
+                                  </label>
+                                  <select
+                                    id="offer-menu-item"
+                                    value={menuSelection}
+                                    onChange={(event) => {
+                                      const id = event.target.value;
+                                      if (id) {
+                                        handleAddMenuItem(id);
+                                      }
+                                    }}
+                                    className="min-h-11 w-full min-w-0 rounded-md border border-ink-900/20 bg-white px-3 py-2 text-sm text-ink-900 focus:outline-none focus:ring-2 focus:ring-clay-500"
+                                  >
+                                    <option value="">Choose a menu item...</option>
+                                    {menu.map((item) => {
+                                      const alreadyAdded = draftItems.some(
+                                        (draft) => draft.menu_item_id === item.id,
+                                      );
+
+                                      return (
+                                        <option
+                                          key={item.id}
+                                          value={item.id}
+                                          disabled={alreadyAdded}
+                                        >
+                                          {item.name} —{" "}
+                                          {formatMoney(Number(item.price))}
+                                          {alreadyAdded ? " (Added)" : ""}
+                                        </option>
+                                      );
+                                    })}
+                                  </select>
+                                </div>
+                              ) : isAlternative ? (
+                                <p className="text-sm leading-6 text-ink-900/60">
+                                  You have no available saved menu items. You can
+                                  still create an offer using custom meals.
+                                </p>
+                              ) : null}
+                            </div>
+                          )}
+
+                          {isAlternative && <div className="mt-4 border-t border-ink-900/10 pt-4">
+                            <h4 className="text-sm font-medium text-ink-900">
+                              Custom meal
+                            </h4>
+                            <p className="mt-1 text-sm leading-6 text-ink-900/60">
+                              Add a meal that is not in your saved menu.
+                            </p>
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              className="mt-3 min-h-11 rounded-md"
+                              onClick={handleAddCustomMeal}
+                              disabled={draftItems.length >= 20 || submitting}
+                            >
+                                {draftItems.length ? "Replace with custom meal" : "Describe a custom meal"}
+                            </Button>
+                          </div>}
+                        </section>
+
+                        <section
+                          className="border-t border-ink-900/10 pt-6"
+                          aria-labelledby="draft-items-heading"
+                        >
+                          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                            <h3
+                              id="draft-items-heading"
+                              className="font-semibold text-ink-900"
+                            >
+                              Your meal offer
+                            </h3>
+                            <span className="text-xs text-ink-900/55">
+                              {isAlternative ? `${draftItems.length} alternative meal` : `${draftItems.length} / ${selectedRequest.items.length} requested meals`}
+                            </span>
+                          </div>
+
+                          {draftItems.length === 0 && (
+                            <div className="rounded-md bg-cream-50 p-5">
+                              <p className="text-sm leading-6 text-ink-900/60">
+                                {isAlternative ? "Add one alternative meal to continue." : "Every requested meal is listed below. Add its plate details and price."}
+                              </p>
+                            </div>
+                          )}
+
+                          <div className="space-y-4">
+                            {draftItems.map((item, index) => {
+                              const quantity = Number(item.quantity);
+                              const price = Number(item.unit_price);
+                              const subtotal =
+                                Number.isFinite(quantity) &&
+                                Number.isFinite(price) &&
+                                quantity > 0 &&
+                                price > 0
+                                  ? quantity * price
+                                  : 0;
+
+                              return (
+                                <div
+                                  key={item.key}
+                                  className="min-w-0 rounded-md border border-ink-900/10 p-4 sm:p-5"
+                                >
+                                  <div className="mb-4 flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                      <p className="text-xs font-semibold uppercase tracking-wider text-clay-500">
+                                        Offer item {index + 1}
+                                      </p>
+                                      <p className="mt-1 text-sm text-ink-900/55">
+                                        {isAlternative && item.menu_item_id
+                                          ? "Saved menu item"
+                                          : isAlternative ? "Alternative meal" : `${selectedRequest.items[index]?.quantity ?? item.quantity} requested plates`}
+                                      </p>
+                                    </div>
+                                    {isAlternative && <button
+                                      type="button"
+                                      onClick={() => removeDraftItem(item.key)}
+                                      disabled={submitting}
+                                      className="min-h-10 shrink-0 rounded-md px-2 text-sm font-medium text-red-700 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay-500 disabled:opacity-50"
+                                    >
+                                      Remove
+                                    </button>}
+                                  </div>
+
+                                  {isAlternative && item.menu_item_id ? (
+                                    <div className="min-w-0">
+                                      <p className="break-words font-medium text-ink-900">
+                                        {item.name}
+                                      </p>
+                                      {item.description && (
+                                        <p className="mt-1 break-words text-sm leading-6 text-ink-900/60">
+                                          {item.description}
+                                        </p>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-3">
+                                      <div>
+                                        <label
+                                          htmlFor={`meal-name-${item.key}`}
+                                          className="mb-1 block text-sm font-medium text-ink-900"
+                                        >
+                                          Meal name
+                                        </label>
+                                        <Input
+                                          id={`meal-name-${item.key}`}
+                                          value={item.name}
+                                          onChange={(event) =>
+                                            updateDraftItem(item.key, {
+                                              name: event.target.value,
+                                            })
+                                          }
+                                          placeholder="e.g. Chicken and rice"
+                                          maxLength={150}
+                                          disabled={submitting}
+                                          readOnly={!isAlternative}
+                                        />
+                                      </div>
+                                      <div>
+                                        <label
+                                          htmlFor={`meal-description-${item.key}`}
+                                          className="mb-1 block text-sm font-medium text-ink-900"
+                                        >
+                                          {isAlternative ? "Description (optional)" : "What is included in this meal?"}
+                                        </label>
+                                        <textarea
+                                          id={`meal-description-${item.key}`}
+                                          value={item.description}
+                                          onChange={(event) =>
+                                            updateDraftItem(item.key, {
+                                              description: event.target.value,
+                                            })
+                                          }
+                                          placeholder="Describe what is included..."
+                                          maxLength={500}
+                                          rows={2}
+                                          disabled={submitting}
+                                          className="w-full min-w-0 rounded-md border border-ink-900/20 bg-white px-3 py-2 text-sm text-ink-900 placeholder:text-ink-900/40 focus:outline-none focus:ring-2 focus:ring-clay-500"
+                                        />
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+                                    {isAlternative && <div className="min-w-0">
+                                      <label
+                                        htmlFor={`meal-quantity-${item.key}`}
+                                        className="mb-1 block text-sm font-medium text-ink-900"
+                                      >
+                                        Plates in this offer
+                                      </label>
+                                      <Input
+                                        id={`meal-quantity-${item.key}`}
+                                        type="number"
+                                        min="1"
+                                        max="20"
+                                        step="1"
+                                        value={item.quantity}
+                                        onChange={(event) =>
+                                          updateDraftItem(item.key, {
+                                            quantity: event.target.value,
+                                          })
+                                        }
+                                        disabled={submitting}
+                                      />
+                                    </div>}
+                                    {!isAlternative && <p className="text-sm text-ink-900/70">Quantity: {selectedRequest.items[index]?.quantity} plates</p>}
+                                    <div className="min-w-0">
+                                      <label
+                                        htmlFor={`meal-price-${item.key}`}
+                                        className="mb-1 block text-sm font-medium text-ink-900"
+                                      >
+                                        Price per plate (USD)
+                                      </label>
+                                      <Input
+                                        id={`meal-price-${item.key}`}
+                                        type="number"
+                                        min="0.01"
+                                        step="0.01"
+                                        value={item.unit_price}
+                                        onChange={(event) =>
+                                          updateDraftItem(item.key, {
+                                            unit_price: event.target.value,
+                                          })
+                                        }
+                                        placeholder="0.00"
+                                        disabled={submitting}
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div className="mt-4 flex flex-wrap justify-between gap-2 border-t border-ink-900/10 pt-3 text-sm">
+                                    <span className="text-ink-900/60">
+                                      Total for {quantity || "these"} plates
+                                    </span>
+                                    <span className="font-semibold text-ink-900">
+                                      {formatMoney(subtotal)}
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </section>
+                      </div>
+
+                      <aside className="min-w-0 space-y-5 border-t border-ink-900/10 pt-6 lg:border-l lg:border-t-0 lg:pl-7 lg:pt-0">
+                        <div>
+                          <label className="flex cursor-pointer items-start gap-3 rounded-md border border-saffron-500/30 bg-saffron-500/5 p-3">
+                            <input
+                              type="checkbox"
+                              checked={isAlternative}
+                              onChange={(event) => {
+                                const nextAlternative = event.target.checked;
+                                setIsAlternative(nextAlternative);
+                                if (nextAlternative) setDraftItems([]);
+                                else setDraftItems(selectedRequest.items.map((item) => ({ key: createDraftKey(), menu_item_id: null, name: item.name, description: "", quantity: String(item.quantity), unit_price: "" })));
+                              }}
+                              disabled={submitting}
+                              className="mt-1 size-5 shrink-0 accent-clay-500"
+                            />
+                            <span>
+                              <span className="block text-sm font-semibold text-ink-900">
+                                This is an alternative offer
+                              </span>
+                              <span className="mt-1 block text-xs leading-5 text-ink-900/65">
+                                Choose this if the meal or plate quantity differs from the customer&apos;s request. The customer will see it clearly labeled.
+                              </span>
+                            </span>
+                          </label>
+                        </div>
+
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-clay-500">
+                            Customer message
+                          </p>
+                          <label
+                            htmlFor="offer-message"
+                            className="mt-2 block text-sm font-semibold text-ink-900"
+                          >
+                            Message to the customer (optional)
+                          </label>
+                          <textarea
+                            id="offer-message"
+                            value={message}
+                            onChange={(event) => {
+                              setMessage(event.target.value);
+                              setSubmissionError("");
+                            }}
+                            placeholder="Add a short message about your offer..."
+                            maxLength={1000}
+                            rows={4}
+                            disabled={submitting}
+                            className="mt-2 w-full min-w-0 rounded-md border border-ink-900/20 bg-white px-3 py-2 text-sm text-ink-900 placeholder:text-ink-900/40 focus:outline-none focus:ring-2 focus:ring-clay-500"
+                          />
+                          <p className="mt-1 text-right text-xs text-ink-900/45">
+                            {message.length} / 1000
+                          </p>
+                        </div>
+
+                        <div className="border-y border-ink-900/10 py-5">
+                          <p className="text-sm font-medium text-ink-900/65">{isAlternative ? "Price per plate" : "Total offer price"}</p>
+                          {isAlternative && <p className="mt-1 font-display text-3xl font-semibold text-ink-900">{formatMoney(Number(draftItems[0]?.unit_price) || 0)}</p>}
+                          <p className="mt-4 text-sm font-medium text-ink-900/65">{isAlternative ? `Total for ${draftItems[0]?.quantity || 0} plates` : `For ${selectedRequest.items.reduce((sum, item) => sum + item.quantity, 0)} requested plates`}</p>
+                          <p className="mt-1 break-words font-display text-3xl font-semibold text-ink-900">
+                            {formatMoney(offerTotal)}
+                          </p>
+                          <p className="mt-2 text-xs text-ink-900/55">
+                            {draftItems.length ? (isAlternative ? "Alternative offer" : "All requested meals included") : "Add meal details to continue"}
+                          </p>
+                        </div>
+
+                        {submissionError && (
+                          <p
+                            role="alert"
+                            className="break-words rounded-md bg-red-50 p-3 text-sm text-red-700"
+                          >
+                            {submissionError}
+                          </p>
+                        )}
+
+                        <div className="flex flex-col-reverse gap-3 sm:flex-row lg:flex-col-reverse">
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={handleCloseComposer}
+                            disabled={submitting}
+                            className="min-h-11 w-full rounded-md"
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            type="submit"
+                            disabled={
+                              submitting ||
+                              draftItems.length === 0 ||
+                              menuLoading
+                            }
+                            className="min-h-11 w-full rounded-md font-semibold"
+                          >
+                            {submitting ? "Submitting offer..." : "Submit offer"}
+                          </Button>
+                        </div>
+                      </aside>
+                    </form>
+                  </Card>
+                </section>
+              )}
+
+              {/* Your menu */}
+              <section className="ck-card ck-i-menu" aria-labelledby="menu-heading">
+                <div className="ck-card-head">
+                  <div>
+                    <h2
+                      id="menu-heading"
+                      className="font-display text-xl font-semibold text-ink-900 sm:text-2xl"
+                    >
+                      Your menu
+                    </h2>
+                    <p className="mt-0.5 text-sm text-ink-900/65">
+                      Your saved meals and your own prices.
                     </p>
-                    <ul className="mt-2 space-y-1 text-sm text-ink-900">
-                      {selectedRequest.items.map((item, index) => (
-                        <li key={`${selectedRequest.id}-offer-${index}`}>
-                          {item.quantity} plates · {item.name}
+                  </div>
+                  <Link href="/cook/menu" className="ck-outline">
+                    Manage menu →
+                  </Link>
+                </div>
+
+                {stripLoading && (
+                  <p role="status" className="mt-4 text-sm text-ink-900/60">
+                    Loading your menu...
+                  </p>
+                )}
+
+                {!stripLoading && stripError && (
+                  <p role="alert" className="mt-4 text-sm text-red-700">
+                    {stripError}
+                  </p>
+                )}
+
+                {!stripLoading && !stripError && menu.length === 0 && (
+                  <p className="mt-4 text-sm leading-6 text-ink-900/65">
+                    You have no saved meals yet. Add some in Manage menu to
+                    speed up your offers.
+                  </p>
+                )}
+
+                {!stripLoading && !stripError && menu.length > 0 && (
+                  <>
+                    <ul className="ck-menu-grid">
+                      {menu.slice(0, 4).map((item) => (
+                        <li key={item.id}>
+                          <div className="ck-menu-tile">
+                            <p
+                              className="font-display text-base leading-snug text-ink-900"
+                              style={{ overflowWrap: "anywhere" }}
+                            >
+                              {item.name}
+                            </p>
+                            <p className="text-sm font-semibold text-clay-500">
+                              {formatMoney(Number(item.price))}
+                            </p>
+                          </div>
                         </li>
                       ))}
                     </ul>
-                    <p className="mt-2 text-xs text-ink-900/60">
-                      Your standard offer must cover the requested plate count.
+                    {menu.length > 4 && (
+                      <p className="mt-3 text-xs text-ink-900/60">
+                        + {menu.length - 4} more in Manage menu
+                      </p>
+                    )}
+                  </>
+                )}
+              </section>
+            </div>
+
+            <div className="ck-side">
+              {/* Kitchen status */}
+              <section className="ck-card ck-i-status" aria-labelledby="status-heading">
+                <h2
+                  id="status-heading"
+                  className="font-display text-xl font-semibold text-ink-900"
+                >
+                  Kitchen status
+                </h2>
+                <div className={`ck-status${availabilityKind === "paused" ? " is-paused" : ""}`}>
+                  <i aria-hidden="true" />
+                  <div>
+                    <p className="text-sm font-semibold text-ink-900">
+                      {availabilityLabel}
+                    </p>
+                    <p className="text-xs leading-5 text-ink-900/70">
+                      {availabilityKind === "paused"
+                        ? "Your cook profile is paused. New meal requests are hidden and new offers are disabled."
+                        : availabilityKind === "open"
+                          ? "Customers can receive your offers."
+                          : "We could not confirm your availability."}
                     </p>
                   </div>
-
-                  <section aria-labelledby="offer-meals-heading">
-                    <div className="mb-4">
-                      <h3
-                        id="offer-meals-heading"
-                        className="font-semibold text-ink-900"
-                      >
-                        Build one complete meal offer
-                      </h3>
-                      <p className="mt-1 text-sm leading-6 text-ink-900/60">
-                        Choose one saved meal or describe a complete meal. Set
-                        one price per plate so customers can compare offers fairly.
-                      </p>
-                    </div>
-
-                    {menuLoading && (
-                      <p role="status" className="mt-4 text-sm text-ink-900/60">
-                        Loading your menu...
-                      </p>
-                    )}
-
-                    {menuError && (
-                      <div className="mt-4 rounded-md border border-red-700/20 bg-red-50 p-3">
-                        <p className="break-words text-sm text-red-700">
-                          {menuError}
-                        </p>
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          className="mt-3"
-                          onClick={() => {
-                            setMenuError("");
-                            setMenuLoading(true);
-                            setMenuRetry((current) => current + 1);
-                          }}
-                        >
-                          Retry menu
-                        </Button>
-                      </div>
-                    )}
-
-                    {!menuLoading && !menuError && menuLoaded && (
-                      <div className="mt-4">
-                        {menu.length > 0 ? (
-                          <div>
-                            <label
-                              htmlFor="offer-menu-item"
-                              className="mb-1 block text-sm font-medium text-ink-900"
-                            >
-                              Saved menu
-                            </label>
-                            <select
-                              id="offer-menu-item"
-                              value={menuSelection}
-                              onChange={(event) => {
-                                const id = event.target.value;
-                                if (id) {
-                                  handleAddMenuItem(id);
-                                }
-                              }}
-                              className="min-h-11 w-full min-w-0 rounded-md border border-ink-900/20 bg-white px-3 py-2 text-sm text-ink-900 focus:outline-none focus:ring-2 focus:ring-clay-500"
-                            >
-                              <option value="">Choose a menu item...</option>
-                              {menu.map((item) => {
-                                const alreadyAdded = draftItems.some(
-                                  (draft) => draft.menu_item_id === item.id,
-                                );
-
-                                return (
-                                  <option
-                                    key={item.id}
-                                    value={item.id}
-                                    disabled={alreadyAdded}
-                                  >
-                                    {item.name} —{" "}
-                                    {formatMoney(Number(item.price))}
-                                    {alreadyAdded ? " (Added)" : ""}
-                                  </option>
-                                );
-                              })}
-                            </select>
-                          </div>
-                        ) : (
-                          <p className="text-sm leading-6 text-ink-900/60">
-                            You have no available saved menu items. You can
-                            still create an offer using custom meals.
-                          </p>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="mt-4 border-t border-ink-900/10 pt-4">
-                      <h4 className="text-sm font-medium text-ink-900">
-                        Custom meal
-                      </h4>
-                      <p className="mt-1 text-sm leading-6 text-ink-900/60">
-                        Add a meal that is not in your saved menu.
-                      </p>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        className="mt-3 min-h-11 rounded-md"
-                        onClick={handleAddCustomMeal}
-                        disabled={draftItems.length >= 20 || submitting}
-                      >
-                          {draftItems.length ? "Replace with custom meal" : "Describe a custom meal"}
-                      </Button>
-                    </div>
-                  </section>
-
-                  <section
-                    className="border-t border-ink-900/10 pt-6"
-                    aria-labelledby="draft-items-heading"
-                  >
-                    <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-                      <h3
-                        id="draft-items-heading"
-                        className="font-semibold text-ink-900"
-                      >
-                        Your meal offer
-                      </h3>
-                      <span className="text-xs text-ink-900/55">
-                        {draftItems.length} / 1 meal
-                      </span>
-                    </div>
-
-                    {draftItems.length === 0 && (
-                      <div className="rounded-md bg-cream-50 p-5">
-                        <p className="text-sm leading-6 text-ink-900/60">
-                          No meals added yet. Choose a saved menu item or
-                          create a custom meal.
-                        </p>
-                      </div>
-                    )}
-
-                    <div className="space-y-4">
-                      {draftItems.map((item, index) => {
-                        const quantity = Number(item.quantity);
-                        const price = Number(item.unit_price);
-                        const subtotal =
-                          Number.isFinite(quantity) &&
-                          Number.isFinite(price) &&
-                          quantity > 0 &&
-                          price > 0
-                            ? quantity * price
-                            : 0;
-
-                        return (
-                          <div
-                            key={item.key}
-                            className="min-w-0 rounded-md border border-ink-900/10 p-4 sm:p-5"
-                          >
-                            <div className="mb-4 flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <p className="text-xs font-semibold uppercase tracking-wider text-clay-500">
-                                  Offer item {index + 1}
-                                </p>
-                                <p className="mt-1 text-sm text-ink-900/55">
-                                  {item.menu_item_id
-                                    ? "Saved menu item"
-                                    : "Custom meal"}
-                                </p>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => removeDraftItem(item.key)}
-                                disabled={submitting}
-                                className="min-h-10 shrink-0 rounded-md px-2 text-sm font-medium text-red-700 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay-500 disabled:opacity-50"
-                              >
-                                Remove
-                              </button>
-                            </div>
-
-                            {item.menu_item_id ? (
-                              <div className="min-w-0">
-                                <p className="break-words font-medium text-ink-900">
-                                  {item.name}
-                                </p>
-                                {item.description && (
-                                  <p className="mt-1 break-words text-sm leading-6 text-ink-900/60">
-                                    {item.description}
-                                  </p>
-                                )}
-                              </div>
-                            ) : (
-                              <div className="space-y-3">
-                                <div>
-                                  <label
-                                    htmlFor={`meal-name-${item.key}`}
-                                    className="mb-1 block text-sm font-medium text-ink-900"
-                                  >
-                                    Meal name
-                                  </label>
-                                  <Input
-                                    id={`meal-name-${item.key}`}
-                                    value={item.name}
-                                    onChange={(event) =>
-                                      updateDraftItem(item.key, {
-                                        name: event.target.value,
-                                      })
-                                    }
-                                    placeholder="e.g. Chicken and rice"
-                                    maxLength={150}
-                                    disabled={submitting}
-                                  />
-                                </div>
-                                <div>
-                                  <label
-                                    htmlFor={`meal-description-${item.key}`}
-                                    className="mb-1 block text-sm font-medium text-ink-900"
-                                  >
-                                    Description (optional)
-                                  </label>
-                                  <textarea
-                                    id={`meal-description-${item.key}`}
-                                    value={item.description}
-                                    onChange={(event) =>
-                                      updateDraftItem(item.key, {
-                                        description: event.target.value,
-                                      })
-                                    }
-                                    placeholder="Describe what is included..."
-                                    maxLength={500}
-                                    rows={2}
-                                    disabled={submitting}
-                                    className="w-full min-w-0 rounded-md border border-ink-900/20 bg-white px-3 py-2 text-sm text-ink-900 placeholder:text-ink-900/40 focus:outline-none focus:ring-2 focus:ring-clay-500"
-                                  />
-                                </div>
-                              </div>
-                            )}
-
-                            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
-                              <div className="min-w-0">
-                                <label
-                                  htmlFor={`meal-quantity-${item.key}`}
-                                  className="mb-1 block text-sm font-medium text-ink-900"
-                                >
-                                  Plates in this offer
-                                </label>
-                                <Input
-                                  id={`meal-quantity-${item.key}`}
-                                  type="number"
-                                  min="1"
-                                  max="20"
-                                  step="1"
-                                  value={item.quantity}
-                                  onChange={(event) =>
-                                    updateDraftItem(item.key, {
-                                      quantity: event.target.value,
-                                    })
-                                  }
-                                  disabled={submitting}
-                                />
-                              </div>
-                              <div className="min-w-0">
-                                <label
-                                  htmlFor={`meal-price-${item.key}`}
-                                  className="mb-1 block text-sm font-medium text-ink-900"
-                                >
-                                  Price per plate (USD)
-                                </label>
-                                <Input
-                                  id={`meal-price-${item.key}`}
-                                  type="number"
-                                  min="0.01"
-                                  step="0.01"
-                                  value={item.unit_price}
-                                  onChange={(event) =>
-                                    updateDraftItem(item.key, {
-                                      unit_price: event.target.value,
-                                    })
-                                  }
-                                  placeholder="0.00"
-                                  disabled={submitting}
-                                />
-                              </div>
-                            </div>
-
-                            <div className="mt-4 flex flex-wrap justify-between gap-2 border-t border-ink-900/10 pt-3 text-sm">
-                              <span className="text-ink-900/60">
-                                Total for {quantity || "these"} plates
-                              </span>
-                              <span className="font-semibold text-ink-900">
-                                {formatMoney(subtotal)}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </section>
                 </div>
+                <Link
+                  href="/cook/profile"
+                  className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-clay-500 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay-500"
+                >
+                  Change in your profile →
+                </Link>
+              </section>
 
-                <aside className="min-w-0 space-y-5 border-t border-ink-900/10 pt-6 lg:border-l lg:border-t-0 lg:pl-7 lg:pt-0">
-                  <div>
-                    <label className="flex cursor-pointer items-start gap-3 rounded-md border border-saffron-500/30 bg-saffron-500/5 p-3">
-                      <input
-                        type="checkbox"
-                        checked={isAlternative}
-                        onChange={(event) => setIsAlternative(event.target.checked)}
-                        disabled={submitting}
-                        className="mt-1 size-5 shrink-0 accent-clay-500"
-                      />
-                      <span>
-                        <span className="block text-sm font-semibold text-ink-900">
-                          This is an alternative offer
-                        </span>
-                        <span className="mt-1 block text-xs leading-5 text-ink-900/65">
-                          Choose this if the meal or plate quantity differs from the customer&apos;s request. The customer will see it clearly labeled.
-                        </span>
-                      </span>
-                    </label>
-                  </div>
+              <CookNegotiations
+                className="ck-i-counter"
+                onCountChange={setNegotiationCount}
+              />
 
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-clay-500">
-                      Customer message
-                    </p>
-                    <label
-                      htmlFor="offer-message"
-                      className="mt-2 block text-sm font-semibold text-ink-900"
+              {/* Offers waiting on customers */}
+              {submittedOffers.length > 0 && (
+                <section
+                  className="ck-card ck-i-offers"
+                  aria-labelledby="submitted-offers-heading"
+                >
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <h2
+                      id="submitted-offers-heading"
+                      className="font-display text-xl font-semibold text-ink-900"
                     >
-                      Message to the customer (optional)
-                    </label>
-                    <textarea
-                      id="offer-message"
-                      value={message}
-                      onChange={(event) => {
-                        setMessage(event.target.value);
-                        setSubmissionError("");
-                      }}
-                      placeholder="Add a short message about your offer..."
-                      maxLength={1000}
-                      rows={4}
-                      disabled={submitting}
-                      className="mt-2 w-full min-w-0 rounded-md border border-ink-900/20 bg-white px-3 py-2 text-sm text-ink-900 placeholder:text-ink-900/40 focus:outline-none focus:ring-2 focus:ring-clay-500"
-                    />
-                    <p className="mt-1 text-right text-xs text-ink-900/45">
-                      {message.length} / 1000
-                    </p>
+                      Offers waiting on customers
+                    </h2>
+                    <span className="text-xs text-ink-900/60">
+                      {submittedOffers.length} awaiting a choice
+                    </span>
                   </div>
-
-                  <div className="border-y border-ink-900/10 py-5">
-                    <p className="text-sm font-medium text-ink-900/65">Price per plate</p>
-                    <p className="mt-1 font-display text-3xl font-semibold text-ink-900">
-                      {formatMoney(Number(draftItems[0]?.unit_price) || 0)}
-                    </p>
-                    <p className="mt-4 text-sm font-medium text-ink-900/65">Total for {draftItems[0]?.quantity || 0} plates</p>
-                    <p className="mt-1 break-words font-display text-3xl font-semibold text-ink-900">
-                      {formatMoney(offerTotal)}
-                    </p>
-                    <p className="mt-2 text-xs text-ink-900/55">
-                      {draftItems.length ? "One complete meal proposal" : "Add one meal to continue"}
-                    </p>
-                  </div>
-
-                  {submissionError && (
-                    <p
-                      role="alert"
-                      className="break-words rounded-md bg-red-50 p-3 text-sm text-red-700"
-                    >
-                      {submissionError}
-                    </p>
-                  )}
-
-                  <div className="flex flex-col-reverse gap-3 sm:flex-row lg:flex-col-reverse">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={handleCloseComposer}
-                      disabled={submitting}
-                      className="min-h-11 w-full rounded-md"
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      type="submit"
-                      disabled={
-                        submitting ||
-                        draftItems.length === 0 ||
-                        menuLoading
-                      }
-                      className="min-h-11 w-full rounded-md font-semibold"
-                    >
-                      {submitting ? "Submitting offer..." : "Submit offer"}
-                    </Button>
-                  </div>
-                </aside>
-              </form>
-            </Card>
-          </section>
-        )}
-      </section>
-    </main>
+                  <ul style={{ listStyle: "none", margin: "8px 0 0", padding: 0 }}>
+                    {submittedOffers.map((offer) => {
+                      const plates = offer.request.items.reduce(
+                        (sum, item) => sum + item.quantity,
+                        0,
+                      );
+                      return (
+                        <li key={offer.id} className="ck-offer-row">
+                          <div className="min-w-0" style={{ flex: "1 1 160px" }}>
+                            <h3
+                              className="text-sm font-semibold text-ink-900"
+                              style={{ overflowWrap: "anywhere" }}
+                            >
+                              {offer.items[0]?.name || "Your meal offer"}
+                              {plates ? `, ${plates} ${plates === 1 ? "plate" : "plates"}` : ""}
+                            </h3>
+                            <p className="mt-0.5 text-xs leading-5 text-ink-900/65">
+                              For {offer.request.items.map((item) => `${item.quantity} × ${item.name}`).join(", ")}
+                            </p>
+                            <p className="mt-0.5 text-xs leading-5 text-ink-900/60">
+                              {offer.request.hub} · {formatPickupDate(offer.request.pickup_date)} ·{" "}
+                              {formatPickupTime(offer.request.pickup_time)}
+                            </p>
+                            {offer.items[0]?.description && (
+                              <p className="mt-1.5 text-xs leading-5 text-ink-900/70">
+                                {offer.items[0].description}
+                              </p>
+                            )}
+                          </div>
+                          <div style={{ textAlign: "right" }}>
+                            <p className="text-sm font-semibold text-ink-900">
+                              {formatMoney(Number(offer.items[0]?.unit_price) || 0)} / plate
+                            </p>
+                            <p className="text-xs text-ink-900/60">
+                              {formatMoney(Number(offer.total_price))} total
+                            </p>
+                            <span className="mt-1.5 inline-flex rounded-full bg-saffron-500/15 px-2.5 py-1 text-[11px] font-semibold text-ink-900">
+                              Customer deciding
+                            </span>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </section>
+              )}
+            </div>
+          </div>
+        </div>
+      </main>
+    </CookShell>
   );
 }

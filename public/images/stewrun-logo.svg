@@ -1,8 +1,9 @@
+
 <svg xmlns="http://www.w3.org/2000/svg" width="150" height="42" viewBox="0 0 150 42" fill="none" role="img" aria-label="StewRun">
-  <path d="M4 13.5H11M1.5 19H9.5" stroke="#D9531E" stroke-width="2.7" stroke-linecap="round"/>
-  <path d="M12 17H41V24.5C41 32 35.4 36 27 36C18.6 36 12 32 12 24.5V17Z" fill="#D9531E"/>
-  <path d="M10.5 16.5H42.5" stroke="#D9531E" stroke-width="2.8" stroke-linecap="round"/>
-  <path d="M16 13L38 7.5" stroke="#D9531E" stroke-width="3.4" stroke-linecap="round"/>
-  <path d="M27 8.8L26 5.5H31.5L32.5 7.5" fill="#D9531E"/>
-  <text x="50" y="29" fill="#1F1B16" font-family="'Plus Jakarta Sans', Inter, Arial, sans-serif" font-size="21" font-weight="800" letter-spacing="-0.8">StewRun</text>
+  <path d="M4 13.5H11M1.5 19H9.5" stroke="#C0563C" stroke-width="2.7" stroke-linecap="round"/>
+  <path d="M12 17H41V24.5C41 32 35.4 36 27 36C18.6 36 12 32 12 24.5V17Z" fill="#C0563C"/>
+  <path d="M10.5 16.5H42.5" stroke="#C0563C" stroke-width="2.8" stroke-linecap="round"/>
+  <path d="M16 13L38 7.5" stroke="#C0563C" stroke-width="3.4" stroke-linecap="round"/>
+  <path d="M27 8.8L26 5.5H31.5L32.5 7.5" fill="#E8A33D"/>
+<text x="50" y="29" font-family="Arial, sans-serif" font-size="21" font-weight="800" letter-spacing="-0.8"><tspan fill="#1F1B16">Stew</tspan><tspan fill="#C0563C">Run</tspan></text>
 </svg>

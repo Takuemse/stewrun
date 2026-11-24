@@ -38,6 +38,9 @@ describe("MVP database migration contracts", () => {
   const cashMvp = readMigration(
     "20261116130000_cash_mvp_offer_contract.sql",
   );
+  const mixedMeals = readMigration(
+    "20261117170000_support_mixed_meal_standard_offers.sql",
+  );
 
   it("limits signup roles and profile updates to safe fields", () => {
     const signup = getFunctionDefinition(onboarding, "handle_new_user");
@@ -140,5 +143,18 @@ describe("MVP database migration contracts", () => {
     assert.match(cashMvp, /GRANT EXECUTE ON FUNCTION public\.get_customer_request_order_states\(\)\s+TO authenticated/);
     assert.match(orderStates, /order_row\.customer_id = v_user_id/);
     assert.match(orderStates, /user_row\.role = 'customer'/);
+  });
+  it("rejects SQL NULL and non-array standard offer items", () => {
+    const standardOffer = getFunctionDefinition(
+      mixedMeals,
+      "create_and_submit_standard_cook_offer",
+    );
+
+    assert.match(standardOffer, /p_request_id IS NULL/);
+    assert.match(standardOffer, /p_items IS NULL/);
+    assert.match(
+      standardOffer,
+      /jsonb_typeof\(p_items\) <> 'array'/,
+    );
   });
 });

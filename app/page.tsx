@@ -2,43 +2,53 @@ import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
-  ClipboardList,
-  CookingPot,
-  DollarSign,
+  CalendarDays,
+  CircleHelp,
+  Clock3,
+  Coins,
+  Wallet,
   MapPin,
-  MessageSquareText,
 } from "lucide-react";
 import PublicMarketplace from "@/components/public-marketplace";
 import { BrandLogo } from "@/components/brand-logo";
+import HowItWorks from "@/components/how-it-works";
+import BudgetChoice from "@/components/budget-choice";
+import LocalCooks from "@/components/local-cooks";
+import PickupHubs from "@/components/pickup-hubs";
+import FinalCta from "@/components/final-cta";
+import SiteFooter from "@/components/site-footer";
 
-const steps = [
+
+const officeProblems = [
   {
     number: "01",
-    icon: MessageSquareText,
-    title: "Name your meal and budget",
-    description:
-      "Choose plates, a pickup hub and time, then set a budget per plate.",
+    icon: Clock3,
+    iconClass: "text-clay-500",
+    title: "Time lost in queues",
+    description: "Queues and searching eat into the time you should rest.",
   },
   {
     number: "02",
-    icon: ClipboardList,
-    title: "Compare and choose",
+    icon: Coins,
+    iconClass: "text-saffron-500",
+    title: "Budget pressure",
     description:
-      "Cooks set their own prices. Compare each meal and total, then choose.",
+      "Finding a satisfying meal at a price that works for you isn’t easy.",
   },
   {
     number: "03",
-    icon: MapPin,
-    title: "Collect and pay in cash",
+    icon: CircleHelp,
+    iconClass: "text-clay-500",
+    title: "Uncertainty",
     description:
-      "Show your pickup code and pay the cook directly when you collect.",
+      "You don’t always know what’s available or what it will cost.",
   },
 ];
 
-const pickupHubs = [
-  "Joina City Mall",
-  "Eastgate Mall",
-  "Avondale Shopping Centre",
+const stewrunBenefits = [
+  { icon: CalendarDays, lines: ["Plan", "ahead"] },
+  { icon: Wallet, lines: ["Know your", "budget"] },
+  { icon: MapPin, lines: ["Collect", "with ease"] },
 ];
 
 function Brand() {
@@ -46,7 +56,7 @@ function Brand() {
     <Link
       href="/"
       aria-label="StewRun home"
-      className="inline-flex min-h-11 items-center gap-3 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-clay-500"
+      className="inline-flex min-h-11 shrink-0 items-center rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-clay-500"
     >
       <BrandLogo className="h-[42px] w-[150px]" />
     </Link>
@@ -56,22 +66,24 @@ function Brand() {
 export default function HomePage() {
   return (
     <main className="min-h-screen bg-cream-50 text-ink-900">
-      <header className="border-b border-ink-900/10">
-        <div className="mx-auto flex min-h-20 max-w-7xl items-center justify-between gap-2 px-5 sm:gap-4 sm:px-8">
+      <header className="relative z-10 border-b border-ink-900/10 bg-cream-50">
+        <div className="mx-auto flex min-h-20 max-w-7xl items-center justify-between gap-2 px-4 sm:gap-4 sm:px-8">
           <Brand />
+
           <nav
             aria-label="Main navigation"
-            className="flex items-center gap-0 sm:gap-4"
+            className="flex shrink-0 items-center gap-2 sm:gap-4"
           >
             <Link
               href="#marketplace"
-              className="inline-flex min-h-11 items-center rounded-md px-2 text-sm font-semibold text-ink-900 hover:text-clay-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay-500 sm:px-3"
+              className="hidden min-h-11 items-center rounded-md px-3 text-sm font-semibold text-ink-900 transition-colors hover:text-clay-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay-500 min-[400px]:inline-flex"
             >
               Browse meals
             </Link>
+
             <Link
               href="/login"
-              className="inline-flex min-h-11 items-center rounded-md px-1.5 text-sm font-semibold text-ink-900 hover:text-clay-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay-500 sm:px-3"
+              className="inline-flex min-h-11 items-center justify-center rounded-full bg-clay-500 px-5 text-sm font-semibold text-cream-50 transition-colors hover:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay-500"
             >
               Sign In
             </Link>
@@ -79,223 +91,331 @@ export default function HomePage() {
         </div>
       </header>
 
-      <section className="mx-auto grid max-w-7xl items-center gap-10 px-5 py-12 sm:px-8 sm:py-16 lg:grid-cols-[0.9fr_1.1fr] lg:gap-14 lg:py-20">
-        <div className="max-w-2xl">
-          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-sage-500">
-            A pre-order lunch marketplace for Harare
-          </p>
-          <h1 className="mt-4 font-display text-5xl leading-[1.04] tracking-tight text-ink-900 sm:text-6xl">
-            Choose your lunch. Choose your price.
-          </h1>
-          <p className="mt-5 max-w-xl text-base leading-7 text-ink-900/75 sm:text-lg sm:leading-8">
-            Set a budget per plate. Compare independent offers from Harare cooks.
-            Choose the meal you want, then pay the cook in cash when you collect it.
-          </p>
-          <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-            <Link
-              href="/register?role=customer"
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-clay-500 px-6 text-sm font-semibold text-white hover:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay-500"
-            >
-              Start a lunch request
-              <ArrowRight aria-hidden="true" className="size-4" />
-            </Link>
-            <Link
-              href="/register?role=cook"
-              className="inline-flex min-h-12 items-center justify-center rounded-md border border-ink-900/20 bg-white px-6 text-sm font-semibold text-ink-900 hover:bg-ink-900/[0.03] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay-500"
-            >
-              I&apos;m a cook
-            </Link>
-          </div>
-          <p className="mt-4 text-sm leading-6 text-ink-900/65">
-            Plan ahead for lunch and collect at a selected hub.
-          </p>
-        </div>
+      <section className="relative isolate flex min-h-[620px] items-center overflow-hidden bg-ink-900 sm:min-h-[680px] lg:min-h-[720px]">
+        <Image
+          src="/images/stewrun-hero-lunch.webp"
+          alt="A plate of sadza, beef stew, leafy greens, and tomato salad."
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover object-center"
+        />
 
-        <figure className="w-full">
-          <div className="relative aspect-[3/2] overflow-hidden rounded-md bg-white">
-            <Image
-              src="/images/stewrun-hero-lunch.webp"
-              alt="A plate of sadza, beef stew, leafy greens, and tomato salad."
-              fill
-              sizes="(max-width: 1023px) 100vw, 58vw"
-              preload
-              className="object-cover"
-            />
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 bg-ink-900/65"
+        />
+
+        <div className="relative mx-auto w-full max-w-7xl px-5 py-20 sm:px-8 sm:py-24 lg:py-28">
+          <div className="max-w-3xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-saffron-500 sm:text-sm">
+              A pre-order lunch marketplace for Harare
+            </p>
+
+            <h1 className="mt-6 max-w-3xl font-display text-4xl leading-[1.08] tracking-tight text-cream-50 sm:text-5xl md:text-6xl lg:text-display">
+              Choose your lunch.
+              <br />
+              <span className="text-saffron-500">Choose your price.</span>
+            </h1>
+
+            <p className="mt-6 max-w-2xl text-base leading-7 text-cream-50/85 sm:text-lg sm:leading-8">
+            Set a budget per plate. Tell Ziva what you&apos;re craving in English or Shona, compare independent offers from Harare cooks, and pay in cash when you collect your lunch
+            </p>
+
+            <div className="mt-8 flex flex-col gap-3 min-[420px]:flex-row min-[420px]:flex-wrap">
+              <Link
+                href="/register?role=customer"
+                className="inline-flex min-h-14 items-center justify-center gap-2 rounded-full bg-clay-500 px-7 text-sm font-semibold text-cream-50 transition-colors hover:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cream-50"
+              >
+                Start a lunch request
+                <ArrowRight aria-hidden="true" className="size-4" />
+              </Link>
+
+              <Link
+                href="/register?role=cook"
+                className="inline-flex min-h-14 items-center justify-center rounded-full bg-saffron-500 px-7 text-sm font-semibold text-ink-900 transition-colors hover:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cream-50"
+              >
+                I&apos;m a cook
+              </Link>
+            </div>
+
+            <p className="mt-5 flex flex-row items-center gap-2 text-sm leading-6 text-cream-50/75">
+              <MapPin
+                aria-hidden="true"
+                className="size-4 shrink-0 text-saffron-500"
+              />
+              <span>Plan ahead for lunch and collect at a selected hub.</span>
+            </p>
           </div>
-          <figcaption className="mt-3 flex items-center gap-2 text-xs leading-5 text-ink-900/60">
-            <MapPin aria-hidden="true" className="size-4 text-clay-500" />
-            Scheduled pre-order lunch, collected at an approved hub
-          </figcaption>
-        </figure>
+        </div>
       </section>
 
       <PublicMarketplace />
 
-      <section className="border-y border-ink-900/10 bg-white">
-        <div className="mx-auto grid max-w-7xl gap-6 px-5 py-14 sm:px-8 sm:py-16 md:grid-cols-[0.8fr_1.2fr] md:gap-12">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-sage-500">
-              The office lunch challenge
-            </p>
-            <h2 className="mt-3 font-display text-3xl tracking-tight sm:text-4xl">
-              A lunch break is too short for guesswork.
-            </h2>
-          </div>
-          <div className="max-w-2xl">
-            <p className="text-base leading-7 text-ink-900/75">
-              Balancing lunch cost, queues, and uncertainty about what will be
-              available can make a workday break harder to plan.
-            </p>
-            <p className="mt-4 text-base leading-7 text-ink-900/75">
-              StewRun offers a practical way to plan ahead: describe what you
-              want, see independent cook offers before deciding, and choose
-              where to collect your meal.
-            </p>
-          </div>
-        </div>
-      </section>
-
+      {/* ───────────── The Office Lunch Challenge ───────────── */}
       <section
-        id="how-it-works"
-        aria-labelledby="how-it-works-heading"
-        className="mx-auto max-w-7xl px-5 py-14 sm:px-8 sm:py-16"
+        aria-labelledby="office-lunch-heading"
+        className="relative isolate overflow-hidden border-y border-ink-900/10 bg-[#FDF4E9]"
       >
-        <div className="max-w-2xl">
-          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-sage-500">
-            A clear way to plan
-          </p>
-          <h2
-            id="how-it-works-heading"
-            className="mt-3 font-display text-3xl tracking-tight sm:text-4xl"
-          >
-            From your idea to pickup.
-          </h2>
-        </div>
-        <ol className="mt-9 grid gap-x-8 gap-y-7 sm:grid-cols-2 lg:grid-cols-3">
-          {steps.map(({ number, icon: Icon, title, description }) => (
-            <li key={number} className="border-t border-ink-900/15 pt-4">
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-sm font-medium text-clay-500">
-                  {number}
-                </span>
-                <Icon aria-hidden="true" className="size-5 text-sage-500" />
-              </div>
-              <h3 className="mt-4 font-display text-xl tracking-tight">
-                {title}
-              </h3>
-              <p className="mt-2 text-sm leading-6 text-ink-900/70">
-                {description}
-              </p>
-            </li>
-          ))}
-        </ol>
-      </section>
-
-      <section className="border-y border-ink-900/10 bg-[#f1e7d8]">
-        <div className="mx-auto grid max-w-7xl gap-8 px-5 py-14 sm:px-8 sm:py-16 md:grid-cols-[auto_1fr] md:items-start md:gap-10">
-          <div className="flex size-12 items-center justify-center rounded-md bg-white text-clay-500">
-            <DollarSign aria-hidden="true" className="size-6" />
-          </div>
-          <div className="max-w-3xl">
-            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-sage-500">
-              Your budget, your choice
-            </p>
-            <h2 className="mt-3 font-display text-3xl tracking-tight sm:text-4xl">
-              Set a target. Decide when you see the offers.
-            </h2>
-            <p className="mt-4 text-base leading-7 text-ink-900/75">
-              You set a target budget per plate to show what you have in mind.
-              Cooks independently choose the prices in their offers, so the
-              price may be above or below your target. Compare the offers and
-              decide which, if any, you want to accept.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section className="mx-auto grid max-w-7xl gap-6 px-5 py-14 sm:px-8 sm:py-16 md:grid-cols-[0.7fr_1.3fr] md:items-center md:gap-12">
-        <div className="flex items-center gap-4">
-          <CookingPot
-            aria-hidden="true"
-            className="size-9 shrink-0 text-clay-500"
+        {/* Harare skyline: sits on the right edge and fades out to the left, top and bottom */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-0 right-0 w-full lg:w-[48%]"
+          style={{
+            WebkitMaskImage:
+              "linear-gradient(to right, transparent 0%, #000 55%)",
+            maskImage: "linear-gradient(to right, transparent 0%, #000 55%)",
+          }}
+        >
+          <div
+            className="absolute inset-x-0 bottom-[8%] top-[14%] bg-[url('/images/harare-cbd-background.jpg')] bg-cover bg-[position:85%_bottom] opacity-[0.32]"
+            style={{
+              WebkitMaskImage:
+                "linear-gradient(to bottom, transparent 0%, #000 30%, #000 60%, transparent 100%)",
+              maskImage:
+                "linear-gradient(to bottom, transparent 0%, #000 30%, #000 60%, transparent 100%)",
+            }}
           />
-          <h2 className="font-display text-3xl tracking-tight sm:text-4xl">
-            Local cooks, your way.
-          </h2>
         </div>
-        <p className="max-w-2xl text-base leading-7 text-ink-900/75">
-          Approved home cooks and small caterers can respond to customer
-          requests with their own meal offers. You choose whether an offer
-          suits your lunch plans.
-        </p>
-      </section>
 
-      <section
-        aria-labelledby="pickup-hubs-heading"
-        className="border-y border-ink-900/10 bg-white"
-      >
-        <div className="mx-auto grid max-w-7xl gap-8 px-5 py-14 sm:px-8 sm:py-16 md:grid-cols-[0.8fr_1.2fr] md:items-center">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-sage-500">
-              Pick up on your schedule
-            </p>
-            <h2
-              id="pickup-hubs-heading"
-              className="mt-3 font-display text-3xl tracking-tight sm:text-4xl"
+        {/* Top-right decorative circles */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-24 -top-36 size-80 rounded-full border border-clay-500/20"
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-12 -top-24 size-52 rounded-full bg-gradient-to-br from-saffron-500/20 to-clay-500/10"
+        />
+
+        {/* Organic photo shape */}
+        <svg
+          width="0"
+          height="0"
+          aria-hidden="true"
+          focusable="false"
+          className="absolute"
+        >
+          <defs>
+            <clipPath id="office-photo-blob" clipPathUnits="objectBoundingBox">
+              <path d="M0 .1842 C0 .1053 .0775 .0526 .2171 .0395 C.4341 .0132 .6202 0 .7442 .0066 C.8992 .0197 .9922 .1974 1 .3947 C1 .5526 .9612 .6842 .938 .7895 C.8992 .9211 .7752 .9803 .5891 .9934 C.4341 1 .2016 1 .093 .9737 C.0155 .9474 0 .8553 0 .7895 Z" />
+            </clipPath>
+          </defs>
+        </svg>
+
+        <div className="relative mx-auto grid max-w-7xl items-center gap-14 px-5 py-14 sm:px-8 sm:py-20 lg:grid-cols-[1fr_1.15fr] lg:gap-16">
+          {/* Left: photo composition */}
+          <div className="relative mx-auto w-full max-w-lg px-[6%] lg:max-w-none">
+            <div
+              className="relative aspect-[645/760]"
+              style={{ containerType: "inline-size" }}
             >
-              Approved pickup hubs in Harare.
-            </h2>
-            <p className="mt-4 max-w-md text-sm leading-6 text-ink-900/70">
-              Choose a hub for scheduled collection. StewRun is pre-order and
-              pickup, not doorstep delivery.
-            </p>
-          </div>
-          <ul className="divide-y divide-ink-900/10 border-y border-ink-900/10">
-            {pickupHubs.map((hub) => (
-              <li
-                key={hub}
-                className="flex min-h-14 items-center gap-3 py-3"
+              {/* Terracotta swoosh behind the photo */}
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 330 220"
+                className="absolute -left-[6%] -top-[3%] w-[51%] overflow-visible text-clay-500"
               >
-                <MapPin
-                  aria-hidden="true"
-                  className="size-5 shrink-0 text-clay-500"
+                <path
+                  d="M2 208 C-4 110 48 18 150 4 C235 -6 310 22 322 42 C220 48 130 84 92 150 C70 190 50 214 2 208 Z"
+                  fill="currentColor"
                 />
-                <span className="text-sm font-semibold">{hub}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </section>
+              </svg>
 
-      <section className="bg-ink-900 text-cream-50">
-        <div className="mx-auto flex max-w-7xl flex-col gap-6 px-5 py-14 sm:px-8 sm:py-16 md:flex-row md:items-center md:justify-between">
-          <div className="max-w-2xl">
-            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-clay-300">
-              Plan your next lunch
-            </p>
-            <h2 className="mt-3 font-display text-3xl tracking-tight sm:text-4xl">
-              Your next lunch starts with what you want.
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-cream-50/75">
-              Create an account to describe your meal and review cook offers.
-            </p>
+              {/* Soft shadow under the photo */}
+              <div
+                aria-hidden="true"
+                className="absolute inset-x-[10%] -bottom-[3%] h-[7%] rounded-full bg-clay-500/25 blur-2xl"
+              />
+
+              {/* Photo, clipped to the organic shape */}
+              <div
+                className="absolute inset-0 overflow-hidden bg-[#6b5546]"
+                style={{ clipPath: "url(#office-photo-blob)" }}
+              >
+                <Image
+                  src="/images/office-lunch-worker.jpg"
+                  alt="Office professional resting her chin on her hand at her laptop during the workday"
+                  fill
+                  sizes="(min-width: 1024px) 45vw, 90vw"
+                  className="object-cover object-[35%_0%]"
+                />
+                <div
+                  aria-hidden="true"
+                  className="absolute inset-0 bg-gradient-to-t from-[#30180a]/95 via-[#30180a]/70 via-20% to-transparent to-50%"
+                />
+              </div>
+
+              {/* Your midday moment label */}
+              <div className="absolute left-[3%] top-[7%] inline-flex items-center gap-2.5 rounded-full bg-cream-50 px-4 py-2.5 text-[11px] font-bold uppercase tracking-[0.07em] text-ink-900 shadow-md sm:text-xs">
+                <span
+                  aria-hidden="true"
+                  className="size-3 rounded-full bg-saffron-500"
+                />
+                Your midday moment
+              </div>
+
+              {/* Caption */}
+              <div className="absolute bottom-[5.5%] left-[7.75%]">
+                <p
+                  className="whitespace-nowrap font-display text-2xl leading-[1.04] text-cream-50 sm:text-3xl"
+                  style={{ fontSize: "7.6cqw" }}
+                >
+                  Make your lunch
+                  <br />
+                  break <span className="text-saffron-500">count.</span>
+                </p>
+                <span
+                  aria-hidden="true"
+                  className="block rounded-full bg-saffron-500"
+                  style={{
+                    marginTop: "2.4cqw",
+                    width: "15.8cqw",
+                    height: "0.7cqw",
+                    minHeight: 3,
+                  }}
+                />
+              </div>
+
+              {/* 01 Lunch first badge */}
+              <div
+                aria-hidden="true"
+                className="absolute left-[80%] top-[82%] flex aspect-square w-[24%] min-w-[84px] flex-col items-center justify-center rounded-full border-[5px] border-cream-50 bg-clay-500 text-center text-white shadow-lg"
+              >
+                <span className="font-display text-3xl leading-none sm:text-5xl">
+                  01
+                </span>
+                <span className="mt-1 text-[9px] font-bold uppercase leading-tight tracking-[0.1em] sm:text-xs">
+                  Lunch
+                  <br />
+                  first
+                </span>
+              </div>
+            </div>
           </div>
-          <Link
-            href="/register?role=customer"
-            className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-md bg-clay-500 px-6 text-sm font-semibold text-white hover:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cream-50"
-          >
-            Start a lunch request
-            <ArrowRight aria-hidden="true" className="size-4" />
-          </Link>
+
+          {/* Right: problem + StewRun solution */}
+          <div className="max-w-2xl lg:max-w-none">
+            <div className="flex items-center gap-4">
+              <span
+                aria-hidden="true"
+                className="h-0.5 w-12 bg-ink-900/70 sm:w-[70px]"
+              />
+              <p className="text-sm font-bold uppercase tracking-[0.07em] text-sage-500">
+                The office lunch challenge
+              </p>
+            </div>
+
+            <h2
+              id="office-lunch-heading"
+              className="mt-5 font-display text-4xl leading-[1.08] tracking-tight text-ink-900 sm:text-5xl"
+            >
+              Your workday is busy.
+              <span className="block text-clay-500">
+                Lunch shouldn&apos;t be.
+              </span>
+            </h2>
+            <span
+              aria-hidden="true"
+              className="mt-6 block h-1 w-[102px] rounded-full bg-saffron-500"
+            />
+
+            <p className="mt-6 max-w-[620px] text-base leading-7 text-ink-900/75">
+              Finding a good lunch in Harare shouldn&apos;t mean wasting your
+              break, overspending or settling for less. You deserve a better
+              way to enjoy your midday meal.
+            </p>
+
+            <ol className="mt-8 divide-y divide-ink-900/10">
+              {officeProblems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <li
+                    key={item.number}
+                    className="flex items-center gap-4 py-5 sm:gap-5"
+                  >
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-clay-500 font-display text-base font-semibold text-white">
+                      {item.number}
+                    </span>
+                    <span
+                      aria-hidden="true"
+                      className="hidden h-12 w-px bg-ink-900/15 sm:block"
+                    />
+                    <Icon
+                      aria-hidden="true"
+                      strokeWidth={1.5}
+                      className={`size-10 shrink-0 sm:size-12 ${item.iconClass}`}
+                    />
+                    <div className="sm:pl-2">
+                      <h3 className="font-display text-xl tracking-tight text-ink-900 sm:text-2xl">
+                        {item.title}
+                      </h3>
+                      <p className="mt-0.5 text-sm leading-6 text-ink-900/75 sm:text-base">
+                        {item.description}
+                      </p>
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+
+            {/* StewRun solution panel */}
+            <div className="mt-8 grid gap-5 rounded-[26px] bg-ink-900 px-6 py-6 text-cream-50 shadow-xl sm:px-7 xl:grid-cols-[1fr_auto] xl:items-center xl:gap-6">
+              <div className="min-w-0">
+                <p className="flex items-center gap-2 whitespace-nowrap text-[11px] font-bold uppercase tracking-[0.1em] text-saffron-500">
+                  <span
+                    aria-hidden="true"
+                    className="size-2 shrink-0 rounded-full bg-saffron-500"
+                  />
+                  A better way to lunch
+                </p>
+                <h3 className="mt-2.5 font-display text-xl leading-tight tracking-tight sm:text-2xl">
+                  That&apos;s why we built{" "}
+                  <span className="whitespace-nowrap text-saffron-500">
+                    StewRun.
+                  </span>
+                </h3>
+                <p className="mt-1.5 text-sm leading-5 text-cream-50/85">
+                  Plan ahead. Compare meals. Collect with ease.
+                </p>
+              </div>
+
+              <ul className="grid grid-cols-3 divide-x divide-cream-50/20 border-t border-cream-50/20 pt-4 xl:flex xl:border-l xl:border-t-0 xl:pt-0">
+                {stewrunBenefits.map((benefit) => {
+                  const Icon = benefit.icon;
+                  return (
+                    <li
+                      key={benefit.lines.join(" ")}
+                      className="flex flex-col items-center gap-1.5 px-2 text-center xl:w-[88px]"
+                    >
+                      <Icon
+                        aria-hidden="true"
+                        strokeWidth={1.75}
+                        className="size-6 text-saffron-500"
+                      />
+                      <span className="font-display text-[13px] leading-tight">
+                        {benefit.lines.map((line) => (
+                          <span key={line} className="block">
+                            {line}
+                          </span>
+                        ))}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </div>
         </div>
       </section>
 
-      <footer className="border-t border-ink-900/10">
-        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-5 py-6 text-xs text-ink-900/60 sm:flex-row sm:items-center sm:justify-between sm:px-8">
-          <span>StewRun · Harare</span>
-          <span>Scheduled lunch pre-orders and hub collection.</span>
-        </div>
-      </footer>
+       <HowItWorks />
+       <BudgetChoice />
+      <LocalCooks />
+
+ <PickupHubs />
+<FinalCta />
+<SiteFooter />
     </main>
   );
 }

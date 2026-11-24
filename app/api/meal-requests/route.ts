@@ -144,6 +144,12 @@ function validateItems(
     });
   }
 
+  const totalPlates = items.reduce((total, item) => total + item.quantity, 0);
+
+  if (totalPlates > 20) {
+    return { error: "A request can include up to 20 plates in total." };
+  }
+
   return { items };
 }
 
