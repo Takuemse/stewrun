@@ -10,6 +10,12 @@ The platform uses a customer-led budgeting model: customers describe the meals t
 
 Rather than focusing on conventional on-demand food delivery, StewRun brings customers and cooks together around scheduled meal preparation and collection at designated pickup hubs.
 
+**Current MVP arrangements:**
+- Customers and cooks can register directly. There is no administrator cook-approval workflow.
+- Customers currently pay cooks directly in cash when collecting their meals.
+- EcoCash-related configuration and code exist, but the online payment integration is currently paused and is not an active payment method.
+- Saving a meal request does not place an order or charge the customer. The customer must review a cook's response and proceed through the subsequent order process.
+
 ---
 
 ## Table of Contents
@@ -33,6 +39,7 @@ Rather than focusing on conventional on-demand food delivery, StewRun brings cus
 17. [Project Status](#project-status)
 18. [Future Development](#future-development)
 19. [Contributing](#contributing)
+20. [Project Ownership and Information](#project-ownership-and-information)
 
 ---
 
@@ -60,6 +67,8 @@ Customers communicate what they want, propose a budget and select a collection l
 
 The objective is to make lunch ordering more predictable for customers while helping independent cooks manage demand more effectively.
 
+StewRun is designed around pre-orders and scheduled collection rather than conventional on-demand food delivery.
+
 ## How StewRun Works
 
 1. **Discover:** Customers browse available cooks and their published food offerings.
@@ -69,6 +78,8 @@ The objective is to make lunch ordering more predictable for customers while hel
 5. **Agree:** Customers review cook responses and proceed with a suitable offer.
 6. **Prepare:** Cooks prepare confirmed orders.
 7. **Collect:** Customers collect their meals at the selected pickup hub and pay the cook in cash.
+
+Saving a meal request is an initial marketplace interaction. It does not automatically confirm an order or trigger a payment.
 
 ---
 
@@ -102,6 +113,8 @@ The objective is to make lunch ordering more predictable for customers while hel
 - Collection tracking.
 - In-app notifications.
 
+Customers and cooks can register directly. The platform does not require an administrator to approve cook registration.
+
 ### Marketplace
 
 - Shared customer and cook marketplace.
@@ -129,6 +142,8 @@ Customers can describe meal requirements in English or Shona. Ziva interprets th
 
 The customer remains in control of the final meal request, proposed budget, pickup hub and scheduling details.
 
+Ziva assists with interpreting a request; the customer reviews the resulting information before submitting it.
+
 ---
 
 ## Customer-Led Budget Model
@@ -145,6 +160,8 @@ Cooks can then:
 
 This creates a structured negotiation process that gives customers flexibility while allowing cooks to make informed decisions about the work they accept.
 
+A customer's proposed budget is not automatically a confirmed purchase price. Customers review the cook's response before proceeding.
+
 ---
 
 ## Pickup and Payment
@@ -159,15 +176,19 @@ The initial pickup hubs are:
 
 Customers select their preferred pickup hub when submitting a meal request. The selected location is associated with the request and confirmed order.
 
+StewRun is designed around scheduled pickup rather than conventional on-demand delivery.
+
 ### Cash on Collection
 
-The MVP uses cash payments at the pickup hub.
+The current MVP uses cash payments at the pickup hub.
 
 Customers pay the cook directly when collecting their meals.
 
-Online payment integrations, including EcoCash, are reserved for future development and are not required for the cash-only MVP setup.
+The current payment arrangement is not a live online payment integration. EcoCash-related code and configuration are present in the project, but the integration is paused and is not available as an active online payment method.
 
-StewRun is designed around scheduled pickup rather than conventional on-demand delivery.
+Online payment integrations, including EcoCash, may be considered for future development.
+
+**Important distinction:** Saving a meal request does not place an order or charge the customer. A customer must review the cook's response and proceed through the subsequent order process. Payment is made directly to the cook in cash at collection under the current MVP arrangement.
 
 ---
 
@@ -194,9 +215,9 @@ The application prioritizes secure server-side operations, reliable data handlin
 
 The repository uses the Next.js App Router architecture.
 
-Important directories include:
+Important directories and files include:
 
-| Directory | Responsibility |
+| Directory or file | Responsibility |
 |---|---|
 | `app/` | Application pages, layouts and API routes |
 | `app/(auth)/` | Authentication pages |
@@ -207,6 +228,7 @@ Important directories include:
 | `components/ui/` | Shared UI components |
 | `lib/` | Application logic and shared utilities |
 | `lib/server/` | Server-side services and operations |
+| `supabase/` | Supabase project configuration and database resources |
 | `supabase/migrations/` | Database migration files |
 | `test/` | Automated tests |
 | `public/` | Static assets |
@@ -286,7 +308,7 @@ Create a local environment file named:
 
 Add the required configuration values. See [Environment Configuration](#environment-configuration).
 
-Never commit this file.
+Never commit this file or publish its credentials.
 
 ### 4. Start the Development Server
 
@@ -308,7 +330,7 @@ Stop the development server with `Ctrl + C`.
 
 The application uses environment variables to connect to external services.
 
-The following variables are present in the project's environment-variable template.
+The following variables are included in the project's environment-variable template.
 
 ### Required Application Configuration
 
@@ -342,14 +364,17 @@ ECOCASH_MERCHANT_NAME=
 
 These are configuration names, not a statement that every variable is required for the current MVP.
 
-**Important:**
+### Environment Variable Guidance
 
 - Use the correct Supabase project URL and public key for your development environment.
 - Keep the Supabase service-role key server-side only.
 - Never expose the OpenAI API key in browser-side code.
 - Never commit passwords, merchant PINs, API keys or other credentials.
 - Do not use production credentials in local development.
-- The EcoCash variables relate to legacy or future payment functionality and are not required for the cash-on-collection MVP.
+- The EcoCash variables relate to paused or future payment functionality and are not required for the current cash-on-collection MVP.
+- `ADMIN_USER_IDS` relates to administration and security configuration. It does not represent an administrator cook-approval workflow.
+
+The `.env.example` file should contain safe placeholder values only. Actual credentials belong in the local `.env.local` file or the appropriate secure deployment environment.
 
 Do not copy real credentials into documentation, screenshots, GitHub issues or public messages.
 
@@ -430,6 +455,8 @@ A successful local check does not replace staging verification or end-to-end tes
 
 Test both customer and cook workflows when making changes that affect the marketplace.
 
+Testing should consider the complete interaction between customer requests, cook responses, order progression, pickup arrangements and payment handling.
+
 ---
 
 ## Database and Supabase
@@ -442,6 +469,8 @@ Database changes are maintained through SQL migration files in:
 supabase/migrations/
 ```
 
+The repository also includes Supabase project configuration.
+
 ### Database Development Guidelines
 
 - Review existing migrations before creating new ones.
@@ -452,15 +481,20 @@ supabase/migrations/
 - Test changes against the intended staging project.
 - Never assume the local environment is linked to the correct Supabase project.
 
-### Important Repository Setup Note
+### Supabase CLI and Environment Safety
 
-The current repository snapshot does not include `supabase/config.toml`.
+Before using commands such as:
 
-Consequently, local Supabase CLI workflows should not be assumed to be ready simply because migration files exist.
+```bash
+supabase link
+supabase db push
+```
 
-Before using commands such as `supabase link` or `supabase db push`, ensure the repository has the appropriate Supabase project configuration and that the target project has been independently verified.
+Confirm that the Supabase CLI is configured for the intended project.
 
-Never apply migrations to production without reviewing the SQL and obtaining explicit approval.
+Verify the project reference and target environment before applying migrations. The presence of local migration files does not establish which remote database a command will affect.
+
+Never apply migrations to production without reviewing the SQL, verifying the target project and obtaining explicit approval.
 
 ---
 
@@ -524,6 +558,8 @@ Changes should be reviewed and verified in staging before they are considered fo
 
 Do not merge the entire staging branch into `main` merely to publish an isolated documentation or maintenance change. Use a separate branch and pull request when appropriate.
 
+The release branch should contain reviewed and tested changes suitable for production deployment.
+
 ---
 
 ## Security
@@ -543,6 +579,8 @@ The application is designed to use:
 
 Users should only access information and perform actions permitted by their roles and ownership of the relevant records.
 
+### Security Practices
+
 Never:
 
 - Commit `.env.local`.
@@ -550,6 +588,9 @@ Never:
 - Trust client-provided user roles without server-side validation.
 - Disable RLS to work around application errors.
 - Apply unreviewed database changes to production.
+- Publish API keys, passwords, merchant PINs or other credentials.
+
+Administration-related security configuration should be treated separately from customer and cook registration. Both customer and cook registration are supported without an administrator cook-approval workflow.
 
 ---
 
@@ -557,7 +598,9 @@ Never:
 
 **Active Development — MVP**
 
-StewRun is under active development, with a focus on completing the customer and cook experience.
+StewRun is being developed as a pre-order lunch marketplace for Harare, Zimbabwe.
+
+Development and verification focus on completing and validating the customer and cook experience.
 
 Current development priorities include:
 
@@ -571,7 +614,9 @@ Current development priorities include:
 - Secure backend integration.
 - End-to-end testing and deployment readiness.
 
-Features described in this README represent the intended product scope. Their implementation and production readiness should be verified as development progresses.
+The current payment arrangement is cash paid directly to the cook at collection. EcoCash-related functionality is paused and should not be interpreted as an active online payment service.
+
+Features described in this README represent the project's product scope and documented functionality. Their implementation and production readiness should be verified as development and release checks progress.
 
 ---
 
@@ -579,7 +624,7 @@ Features described in this README represent the intended product scope. Their im
 
 Future improvements may include:
 
-- Online payment integrations.
+- Online payment integrations, including the possible reactivation of EcoCash.
 - Expanded pickup locations.
 - Improved cook discovery.
 - Customer reviews and ratings.
@@ -608,17 +653,34 @@ All proposed changes should be reviewed and tested before integration into the m
 
 ---
 
-## Project Information
+## Project Ownership and Information
+
+### Project Ownership and Development
+
+StewRun was developed by **William** as a software development capstone project.
+
+**Role: Project Developer**
+
+The project involved the design, development, implementation and testing of a pre-order lunch marketplace for Harare, Zimbabwe.
+
+The developer's responsibilities included the technical implementation of the application, including frontend development, backend integration, database development, AI integration, application testing and deployment preparation.
+
+### Project Information
 
 | Detail | Information |
 |---|---|
 | Project | StewRun |
 | Product | Pre-Order Lunch Marketplace |
+| Developer | William |
+| Project Role | Software Developer |
+| Project Type | Software Development Capstone Project |
 | Initial Market | Harare, Zimbabwe |
 | Platform | Mobile-first Progressive Web Application |
 | Repository | [github.com/Takuemse/stewrun](https://github.com/Takuemse/stewrun) |
 | Development Branch | `staging` |
 | Release Branch | `main` |
+| Current Payment Method | Cash paid directly to the cook at collection |
+| Online Payment Status | EcoCash integration paused; not an active online payment method |
 
 ---
 
