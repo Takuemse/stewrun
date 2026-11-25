@@ -1,317 +1,122 @@
 # StewRun
+## A Pre-Order Lunch Marketplace for Harare, Zimbabwe
 
-### A Pre-Order Lunch Marketplace for Harare, Zimbabwe
+StewRun is a mobile-first marketplace connecting customers with independent cooks and small catering businesses in Harare. It is built around planned lunch requests, customer-proposed budgets, cook offers and scheduled collection at approved pickup hubs—not conventional on-demand food delivery.
 
-**Making everyday lunch ordering simpler, more affordable and more accessible.**
+## Product principles
 
-StewRun is a digital marketplace connecting customers with independent cooks and small catering businesses in Harare, Zimbabwe.
+- Customers describe the meals they want, set a per-plate budget, and choose a pickup hub and schedule.
+- Cooks review requests and decide what they can fulfil, submitting itemised offers with prices.
+- Customers review offers and order details before choosing whether to proceed.
+- Orders are prepared for scheduled collection at the selected hub.
+- A live map is optional; hub selection must remain usable as a searchable/list-based choice on slower connections.
+- Customer and Cook are the supported account roles. There is no public Admin role or admin approval workflow in the current product model.
 
-The platform uses a customer-led budgeting model: customers describe the meals they want and propose what they are willing to pay. Cooks can review requests, accept them, reject them with an explanation, or negotiate through a counter-offer where supported.
+## How it works
 
-Rather than focusing on conventional on-demand food delivery, StewRun brings customers and cooks together around scheduled meal preparation and collection at designated pickup hubs.
+1. A customer registers or signs in using the Customer role.
+2. The customer describes a meal in natural language. Ziva helps interpret the request in English or Shona.
+3. The customer reviews the interpreted meal details, enters a per-plate budget, and selects a pickup hub, date and time.
+4. The request is saved. Saving a request does not itself place an order or charge the customer.
+5. Cooks sign in using the Cook role, review requests and submit itemised offers with quantities and prices. Supported responses include acceptance, rejection with a reason and counter-offers.
+6. The customer reviews available offers and chooses whether to proceed.
+7. The order follows the application's reservation, confirmation, preparation and collection workflow.
+8. The customer collects the meal at the selected hub. The MVP collection/payment flow is cash at collection; online payment is future work.
 
----
+## Core capabilities
 
-## Table of Contents
-
-1. [The Problem](#the-problem)
-2. [Our Solution](#our-solution)
-3. [How StewRun Works](#how-stewrun-works)
-4. [Core Features](#core-features)
-5. [Ziva — The Meal Request Assistant](#ziva--the-meal-request-assistant)
-6. [Customer-Led Budget Model](#customer-led-budget-model)
-7. [Pickup and Payment](#pickup-and-payment)
-8. [Technology Stack](#technology-stack)
-9. [Project Structure](#project-structure)
-10. [Getting Started](#getting-started)
-11. [Environment Configuration](#environment-configuration)
-12. [Running the Application](#running-the-application)
-13. [Testing and Quality Checks](#testing-and-quality-checks)
-14. [Database and Supabase](#database-and-supabase)
-15. [Git Workflow](#git-workflow)
-16. [Security](#security)
-17. [Project Status](#project-status)
-18. [Future Development](#future-development)
-19. [Contributing](#contributing)
-
----
-
-## The Problem
-
-Finding affordable lunch during a busy working day can be challenging.
-
-**For customers:**
-- Limited access to affordable and convenient lunch options.
-- Uncertainty about meal availability and pricing.
-- Time lost searching for food during working hours.
-- Difficulty discovering independent cooks offering suitable meals.
-
-**For cooks:**
-- Limited visibility among potential customers.
-- Difficulty understanding customer demand in advance.
-- Risk of preparing food without confirmed demand.
-- Limited digital tools for managing requests and orders.
-
-## Our Solution
-
-StewRun provides a shared marketplace where customers and cooks can interact through a structured ordering process.
-
-Customers communicate what they want, propose a budget and select a collection location. Cooks review relevant requests and respond according to their availability and ability to fulfil them.
-
-The objective is to make lunch ordering more predictable for customers while helping independent cooks manage demand more effectively.
-
-## How StewRun Works
-
-1. **Discover:** Customers browse available cooks and their published food offerings.
-2. **Request:** Customers describe the meals they want, with help from Ziva.
-3. **Set a budget:** Customers propose their preferred meal budget.
-4. **Respond:** Cooks review requests and accept, reject with a reason, or submit a counter-offer where supported.
-5. **Agree:** Customers review cook responses and proceed with a suitable offer.
-6. **Prepare:** Cooks prepare confirmed orders.
-7. **Collect:** Customers collect their meals at the selected pickup hub and pay the cook in cash.
-
----
-
-## Core Features
-
-### Customer Experience
-
+### Customer
 - Customer registration and authentication.
-- Public discovery of cooks and food offerings.
-- AI-assisted meal requests through Ziva.
-- English and Shona meal interpretation.
-- Customer-proposed meal budgets.
-- Pickup hub selection and collection scheduling.
-- Request and order tracking.
-- Cook acceptance and rejection responses.
-- Rejection explanations and supported negotiation.
-- In-app notifications.
-- Customer profile management.
+- Public discovery of cooks and published food offerings.
+- Ziva-assisted meal interpretation in English and Shona.
+- Review of interpreted meal details before submission.
+- Customer-proposed per-plate budget.
+- Pickup hub, date and time selection.
+- Request and cook-offer review.
+- Order tracking, profile management and in-app notifications.
 
-### Cook Experience
-
-- Direct cook registration and authentication.
-- Cook dashboard.
+### Cook
+- Cook registration and authentication.
+- Cook dashboard, profile and availability management.
 - Food offering creation and management.
-- Availability management.
-- Access to relevant customer requests.
-- Review of customer-proposed budgets.
-- Request acceptance or rejection with reasons.
-- Supported counter-offer functionality.
-- Order and preparation management.
-- Collection tracking.
+- Review of relevant customer requests.
+- Itemised offers with meal names, quantities and prices.
+- Supported acceptance, rejection with reasons and counter-offer responses.
+- Order preparation and collection workflow.
 - In-app notifications.
 
-### Marketplace
+## Ziva — meal request assistant
 
-- Shared customer and cook marketplace.
-- Publicly visible published food offerings.
-- Customer-led budget negotiation.
-- Scheduled meal preparation.
-- Designated pickup hubs.
-- Cash-on-collection payments.
+Ziva is StewRun's AI-powered meal-request assistant. Customers describe what they want in everyday language. Ziva interprets English or Shona descriptions into structured meal information for the customer to review. Ziva assists with interpretation; the customer remains responsible for the final request, budget, pickup hub and schedule.
 
-### Notifications
+## Customer budgets and cook offers
 
-The platform includes an in-app notification system intended to keep customers and cooks informed about important marketplace events.
+Customers propose what they are willing to pay per plate. Cooks review the requested meals and quantities and respond with their own itemised offer prices. Customers compare the offers before deciding whether to proceed. A saved request or submitted cook offer is not, by itself, a confirmed order.
 
-These include request responses, order confirmations, preparation progress, collection and cancellations.
+## Pickup hubs and collection
 
----
+Initial pickup hubs:
+- **Joina City Mall** — Harare CBD.
+- **Eastgate Mall** — Harare.
+- **Avondale Shopping Centre** — Avondale, Harare.
 
-## Ziva — The Meal Request Assistant
+The customer-selected hub is associated with the request and carried through the order workflow. A map may help users understand locations, but it is not compulsory. Cooks' private home addresses must not be exposed as customer pickup locations.
 
-Ziva is StewRun's AI-powered meal-request assistant.
+StewRun is a scheduled-pickup marketplace, not a courier or on-demand delivery service.
 
-It helps customers describe what they want to eat using natural language rather than requiring them to complete a complicated ordering form.
+## Payment model
 
-Customers can describe meal requirements in English or Shona. Ziva interprets the request and helps structure the information for review before submission.
+The current MVP collection flow is cash at the selected pickup hub. EcoCash and other online payment integrations are future work and must not be described as active payment methods unless separately implemented, configured and verified. Never include payment credentials, merchant PINs or secrets in source control or documentation.
 
-The customer remains in control of the final meal request, proposed budget, pickup hub and scheduling details.
+## Technology
 
----
-
-## Customer-Led Budget Model
-
-One of StewRun's defining features is its customer-led budgeting approach.
-
-Instead of forcing customers to choose only from fixed-price meals, the platform allows them to propose a budget for their requested meal.
-
-Cooks can then:
-
-- Accept the proposed budget.
-- Reject the request and explain why.
-- Submit a counter-offer where supported.
-
-This creates a structured negotiation process that gives customers flexibility while allowing cooks to make informed decisions about the work they accept.
-
----
-
-## Pickup and Payment
-
-StewRun uses designated pickup locations to simplify meal collection.
-
-The initial pickup hubs are:
-
-- Joina City Mall.
-- Eastgate Mall.
-- Avondale Shopping Centre.
-
-Customers select their preferred pickup hub when submitting a meal request. The selected location is associated with the request and confirmed order.
-
-### Cash on Collection
-
-The MVP uses cash payments at the pickup hub.
-
-Customers pay the cook directly when collecting their meals.
-
-Online payment integrations, including EcoCash, are reserved for future development and are not required for the cash-only MVP setup.
-
-StewRun is designed around scheduled pickup rather than conventional on-demand delivery.
-
----
-
-## Technology Stack
-
-| Technology | Purpose |
+| Technology | Responsibility |
 |---|---|
-| Next.js | Full-stack web application framework |
+| Next.js App Router | Full-stack application and routing |
 | React | User interface |
-| TypeScript | Type-safe application development |
-| Tailwind CSS | Styling and responsive design |
-| Supabase | Database, authentication and backend services |
-| PostgreSQL | Relational data storage |
-| OpenAI | AI-powered meal interpretation through Ziva |
-| Vercel | Application deployment |
-| Mocha | Automated test execution |
-| ESLint | Code quality and linting |
+| TypeScript | Type-safe development |
+| Tailwind CSS | Responsive styling |
+| Supabase | Authentication, database access and backend services |
+| PostgreSQL | Relational data and database functions |
+| OpenAI | Natural-language interpretation for Ziva |
+| Vercel | Hosting and deployment |
+| Mocha + tsx | Automated tests |
+| ESLint | Code quality checks |
 
-The application prioritizes secure server-side operations, reliable data handling, role-based access and maintainable application architecture.
+## Repository layout
 
----
-
-## Project Structure
-
-The repository uses the Next.js App Router architecture.
-
-Important directories include:
-
-| Directory | Responsibility |
+| Path | Purpose |
 |---|---|
-| `app/` | Application pages, layouts and API routes |
-| `app/(auth)/` | Authentication pages |
-| `app/(customer)/` | Customer-facing route group |
-| `app/cook/` | Cook-facing pages |
-| `app/api/` | Server-side API endpoints |
+| `app/` | Next.js routes, layouts and pages |
+| `app/api/` | Server-side API route handlers |
 | `components/` | Reusable interface components |
-| `components/ui/` | Shared UI components |
-| `lib/` | Application logic and shared utilities |
-| `lib/server/` | Server-side services and operations |
-| `supabase/migrations/` | Database migration files |
+| `components/ui/` | Shared UI primitives |
+| `lib/` | Shared application logic and services |
+| `lib/server/` | Server-only functionality |
+| `supabase/config.toml` | Local Supabase CLI configuration |
+| `supabase/migrations/` | Versioned database migrations |
 | `test/` | Automated tests |
+| `docs/` | Developer and local testing documentation |
 | `public/` | Static assets |
 
-The exact structure may evolve as development continues.
+## Getting started
 
----
-
-## Getting Started
-
-These instructions cover Windows, macOS and Linux.
-
-### Prerequisites
-
-Install the following:
-
-- Git.
-- Node.js LTS.
-- npm (included with Node.js).
-- Visual Studio Code or another code editor.
-- Access to the configured Supabase project.
-- An OpenAI API key for Ziva functionality.
-
-Check your installations:
-
-```bash
-git --version
-node --version
-npm --version
-```
-
-### 1. Clone the Repository
+Prerequisites: Git, Node.js compatible with the project's Next.js version, npm, a code editor, access to the intended Supabase environment, and an OpenAI API key for Ziva.
 
 ```bash
 git clone https://github.com/Takuemse/stewrun.git
 cd stewrun
-```
-
-The project uses a staging development branch.
-
-```bash
 git switch staging
-```
-
-If you have just cloned the repository and the local branch does not exist:
-
-```bash
-git fetch origin
-git switch -c staging origin/staging
-```
-
-### 2. Install Dependencies
-
-From the project root:
-
-```bash
 npm ci
 ```
 
-`npm ci` installs dependencies using the committed lockfile.
-
-If you intentionally change dependencies, use:
-
+If the local staging branch does not exist:
 ```bash
-npm install
+git fetch origin
+git switch --track origin/staging
 ```
 
-Commit the corresponding changes to `package.json` and `package-lock.json` together.
-
-### 3. Configure Environment Variables
-
-Create a local environment file named:
-
-```text
-.env.local
-```
-
-Add the required configuration values. See [Environment Configuration](#environment-configuration).
-
-Never commit this file.
-
-### 4. Start the Development Server
-
-```bash
-npm run dev
-```
-
-Open the application:
-
-```text
-http://localhost:3000
-```
-
-Stop the development server with `Ctrl + C`.
-
----
-
-## Environment Configuration
-
-The application uses environment variables to connect to external services.
-
-The following variables are present in the project's environment-variable template.
-
-### Required Application Configuration
-
+Create a local `.env.local` file in the repository root:
 ```env
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
@@ -319,307 +124,147 @@ OPENAI_API_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 ```
 
-### Additional Configuration
+Use credentials for the environment you intend to run. Keep the service-role key and OpenAI key server-side only. Never commit `.env.local`, API keys, passwords, merchant PINs or payment secrets. Do not use production credentials in local development.
 
-The repository also contains configuration names for administration and legacy payment functionality:
-
-```env
-ADMIN_USER_IDS=
-
-ECOCASH_BASE_URL=
-ECOCASH_BASIC_AUTH_USERNAME=
-ECOCASH_BASIC_AUTH_PASSWORD=
-ECOCASH_MERCHANT_CODE=
-ECOCASH_MERCHANT_PIN=
-ECOCASH_MERCHANT_NUMBER=
-ECOCASH_CURRENCY=
-ECOCASH_COUNTRY_CODE=
-ECOCASH_TERMINAL_ID=
-ECOCASH_LOCATION=
-ECOCASH_SUPER_MERCHANT_NAME=
-ECOCASH_MERCHANT_NAME=
-```
-
-These are configuration names, not a statement that every variable is required for the current MVP.
-
-**Important:**
-
-- Use the correct Supabase project URL and public key for your development environment.
-- Keep the Supabase service-role key server-side only.
-- Never expose the OpenAI API key in browser-side code.
-- Never commit passwords, merchant PINs, API keys or other credentials.
-- Do not use production credentials in local development.
-- The EcoCash variables relate to legacy or future payment functionality and are not required for the cash-on-collection MVP.
-
-Do not copy real credentials into documentation, screenshots, GitHub issues or public messages.
-
----
-
-## Running the Application
-
-### Development
-
+Start the application:
 ```bash
 npm run dev
 ```
+Open http://localhost:3000 and stop the server with Ctrl+C.
 
-Starts the Next.js development server.
+## Local Supabase
 
-### Production Build
+The repository includes `supabase/config.toml` for the local Supabase CLI stack. Use local Supabase for isolated development and test accounts, rather than creating test records in staging or production.
 
+Follow [docs/local-testing.md](docs/local-testing.md). The basic commands are:
 ```bash
-npm run build
+supabase start
+supabase status
+npm run dev
 ```
 
-Builds the application for production.
+Use the local API URL and local anon/publishable key shown by `supabase status` in your local `.env.local`. The local project ID is a development identifier, not the staging or production project reference.
 
-### Production Server
+Before linking a remote project or running a remote database command, independently verify the project reference. Review migrations before applying them. Do not run production migrations or database pushes without explicit release approval.
 
+## Useful commands
+
+| Command | Purpose |
+|---|---|
+| `npm run dev` | Development server |
+| `npm run build` | Production build |
+| `npm run start` | Serve a production build locally |
+| `npm run lint` | ESLint |
+| `npm test` | Mocha test suite |
+| `npm run testci` | Configured CI test command |
+| `npx tsc --noEmit` | TypeScript check |
+| `git diff --check` | Whitespace/error check |
+| `supabase start` | Start local Supabase |
+| `supabase stop` | Stop local Supabase |
+
+## Testing and quality checks
+
+Before proposing a change, run checks relevant to the files changed:
 ```bash
-npm run start
-```
-
-Starts the production server after a successful build.
-
-### Linting
-
-```bash
-npm run lint
-```
-
-Runs ESLint.
-
-### Automated Tests
-
-```bash
-npm test
-```
-
-Runs the automated test suite.
-
-### CI Test Command
-
-```bash
-npm run testci
-```
-
-Runs the configured CI test command.
-
----
-
-## Testing and Quality Checks
-
-Before submitting changes, developers should run the relevant checks.
-
-```bash
-npm run lint
-npm test
 npx tsc --noEmit
-npm run build
+npm test
+npm run lint
+git diff --check
 ```
+For release candidates, also run `npm run build`. Passing unit tests do not replace end-to-end testing. Verify affected Customer and Cook flows in the intended environment and check responsive layouts.
 
-These checks help identify:
+The audited staging change set recorded 393 passing automated tests, with TypeScript, ESLint and whitespace checks passing. Test counts can change; rerun the suite to verify the current state.
 
-- TypeScript errors.
-- Linting issues.
-- Broken application functionality.
-- Failing automated tests.
-- Production build errors.
+## Database and security
 
-A successful local check does not replace staging verification or end-to-end testing.
+StewRun uses Supabase and PostgreSQL. Database changes are maintained as timestamped SQL migrations in `supabase/migrations/`.
 
-Test both customer and cook workflows when making changes that affect the marketplace.
+- Inspect existing schema, migrations, functions and triggers before changing database behaviour.
+- Review Row Level Security (RLS), ownership checks and role-based authorization.
+- Keep privileged operations server-side.
+- Validate API input and enforce authorization on the server.
+- Do not trust a role or user ID supplied only by the browser.
+- Never disable RLS to work around an application error.
+- Verify the linked Supabase project before remote commands.
+- Production database changes require review, rollback planning and explicit approval.
 
----
-
-## Database and Supabase
-
-StewRun uses Supabase and PostgreSQL for application data and authentication.
-
-Database changes are maintained through SQL migration files in:
-
-```text
-supabase/migrations/
-```
-
-### Database Development Guidelines
-
-- Review existing migrations before creating new ones.
-- Use timestamped migration filenames.
-- Keep database changes small and understandable.
-- Review Row Level Security policies.
-- Verify ownership and role-based access.
-- Test changes against the intended staging project.
-- Never assume the local environment is linked to the correct Supabase project.
-
-### Important Repository Setup Note
-
-The current repository snapshot does not include `supabase/config.toml`.
-
-Consequently, local Supabase CLI workflows should not be assumed to be ready simply because migration files exist.
-
-Before using commands such as `supabase link` or `supabase db push`, ensure the repository has the appropriate Supabase project configuration and that the target project has been independently verified.
-
-Never apply migrations to production without reviewing the SQL and obtaining explicit approval.
-
----
-
-## Git Workflow
-
-StewRun uses separate development and release branches.
+## Git and release workflow
 
 | Branch | Purpose |
 |---|---|
-| `staging` | Active development and integration |
-| `main` | Stable release branch |
+| `staging` | Development integration and staging verification |
+| `main` | Intended production release branch |
 
-### Get the Latest Development Changes
-
+Start work:
 ```bash
 git switch staging
 git pull origin staging
+git switch -c feature/short-description
 ```
 
-### Create a Feature Branch
-
-```bash
-git switch -c feature/your-feature-name
-```
-
-### Review Your Changes
-
+Review before staging:
 ```bash
 git status --short
 git diff
 git diff --check
 ```
 
-### Stage Specific Files
-
-Stage only the files relevant to your change.
-
+Stage only relevant files; do not use `git add .` when unrelated or scratch files may be present:
 ```bash
 git add path/to/file
+git commit -m "type: describe the change"
+git push -u origin feature/short-description
 ```
 
-Avoid staging unrelated work.
+Use a pull request into `staging`. Verify the integrated staging build before considering release to `main`. A successful staging deployment does not mean production has been deployed.
 
-### Commit
+## Deployment environments
 
-```bash
-git commit -m "feat: describe your change"
-```
+StewRun is hosted on Vercel. The staging branch is used for development verification; `main` is the intended production branch.
 
-### Push Your Feature Branch
+- Local development uses the local Supabase stack or an explicitly selected development project.
+- Vercel Preview/Staging uses staging environment variables and the staging Supabase project.
+- Vercel Production must use the designated production Supabase project and production credentials.
 
-```bash
-git push -u origin feature/your-feature-name
-```
+Changing Vercel's production branch does not merge source code, migrate a database or copy environment variables. Verify deployed commit, deployment status and environment configuration separately.
 
-Create a pull request into `staging` for review.
+## Current release status
 
-### Release Process
+**Staging release candidate; production release audit remains in progress.**
 
-Changes should be reviewed and verified in staging before they are considered for `main`.
+The staging codebase includes the Customer and Cook experiences, Ziva-assisted meal requests, customer budgets and cook offers, pickup scheduling and the cash-at-collection workflow. The user has reported that the principal Customer/Cook flows and responsive screen checks have been completed.
 
-Do not merge the entire staging branch into `main` merely to publish an isolated documentation or maintenance change. Use a separate branch and pull request when appropriate.
+Staging commit `b519605` — `refactor: modularize cook offer API and strengthen test coverage` — includes the cook-offer handler extraction, related automated tests, local testing documentation and local Supabase configuration. The user confirmed the staging deployment.
 
----
+The recorded test run reported 393 passing tests. TypeScript, ESLint and `git diff --check` also passed for the audited change set.
 
-## Security
+This README does not declare production released. Production database parity, production environment variables and final production deployment verification remain to be completed before claiming production readiness.
 
-Security is an important part of the StewRun architecture.
+## Future development
 
-The application is designed to use:
-
-- Supabase authentication.
-- Role-based access control.
-- PostgreSQL Row Level Security (RLS).
-- Server-side authorization.
-- Validated API requests.
-- Protected customer and cook records.
-- Secure handling of application credentials.
-- Controlled order state transitions.
-
-Users should only access information and perform actions permitted by their roles and ownership of the relevant records.
-
-Never:
-
-- Commit `.env.local`.
-- Expose service-role keys in frontend code.
-- Trust client-provided user roles without server-side validation.
-- Disable RLS to work around application errors.
-- Apply unreviewed database changes to production.
-
----
-
-## Project Status
-
-**Active Development — MVP**
-
-StewRun is under active development, with a focus on completing the customer and cook experience.
-
-Current development priorities include:
-
-- Shared registration with customer and cook roles.
-- Public cook and food discovery.
-- Customer meal requests and AI interpretation.
-- Customer-led budget negotiation.
-- Cook request and order management.
-- Cash-on-collection workflows.
-- In-app notifications.
-- Secure backend integration.
-- End-to-end testing and deployment readiness.
-
-Features described in this README represent the intended product scope. Their implementation and production readiness should be verified as development progresses.
-
----
-
-## Future Development
-
-Future improvements may include:
-
-- Online payment integrations.
-- Expanded pickup locations.
-- Improved cook discovery.
-- Customer reviews and ratings.
-- Advanced cook analytics.
+Possible future work, subject to product decisions and verification:
+- Online payment integrations such as EcoCash.
+- Expanded pickup coverage.
+- Further cook discovery and marketplace improvements.
+- Customer ratings and review improvements.
 - Additional notification channels.
-- Further AI-powered marketplace assistance.
+- Further Ziva improvements and language coverage.
+- Operational reporting and cook analytics.
 
-These enhancements will be introduced progressively without compromising the simplicity of the core marketplace.
+These are future possibilities, not claims that the features are currently available.
 
----
+## Project information
 
-## Contributing
-
-StewRun is being developed through an iterative product development process.
-
-Development priorities include:
-
-1. Understanding existing architecture before making changes.
-2. Preserving working functionality.
-3. Maintaining secure backend operations.
-4. Testing customer and cook workflows.
-5. Keeping the application maintainable and scalable.
-6. Avoiding unnecessary complexity.
-
-All proposed changes should be reviewed and tested before integration into the main release.
-
----
-
-## Project Information
-
-| Detail | Information |
+| Detail | Value |
 |---|---|
-| Project | StewRun |
-| Product | Pre-Order Lunch Marketplace |
-| Initial Market | Harare, Zimbabwe |
-| Platform | Mobile-first Progressive Web Application |
-| Repository | [github.com/Takuemse/stewrun](https://github.com/Takuemse/stewrun) |
-| Development Branch | `staging` |
-| Release Branch | `main` |
+| Product | StewRun |
+| Description | Pre-Order Lunch Marketplace |
+| Initial market | Harare, Zimbabwe |
+| Platform | Mobile-first web application / PWA |
+| Repository | https://github.com/Takuemse/stewrun |
+| Development branch | `staging` |
+| Production branch | `main` |
+| Staging release commit | `b519605` |
 
 ---
-
 *StewRun — Bringing customers and local cooks together, one meal at a time.*
