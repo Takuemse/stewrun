@@ -2,13 +2,20 @@
 
 ### A Pre-Order Lunch Marketplace for Harare, Zimbabwe
 
-**Making everyday lunch ordering simpler, more affordable and more accessible.**
+*Making everyday lunch ordering simpler, more affordable and more accessible.*
 
 StewRun is a digital marketplace connecting customers with independent cooks and small catering businesses in Harare, Zimbabwe.
 
 The platform uses a customer-led budgeting model: customers describe the meals they want and propose what they are willing to pay. Cooks can review requests, accept them, reject them with an explanation, or negotiate through a counter-offer where supported.
 
 Rather than focusing on conventional on-demand food delivery, StewRun brings customers and cooks together around scheduled meal preparation and collection at designated pickup hubs.
+
+**Current MVP arrangements:**
+
+- Customers and cooks can register directly. There is no administrator cook-approval workflow.
+- Customers currently pay cooks directly in cash when collecting their meals.
+- EcoCash-related configuration and code exist, but the online payment integration is currently paused and is not an active payment method.
+- Saving a meal request does not place an order or charge the customer. The customer must review a cook's response and proceed through the subsequent order process.
 
 ---
 
@@ -33,6 +40,7 @@ Rather than focusing on conventional on-demand food delivery, StewRun brings cus
 17. [Project Status](#project-status)
 18. [Future Development](#future-development)
 19. [Contributing](#contributing)
+20. [Project Ownership and Information](#project-ownership-and-information)
 
 ---
 
@@ -41,12 +49,14 @@ Rather than focusing on conventional on-demand food delivery, StewRun brings cus
 Finding affordable lunch during a busy working day can be challenging.
 
 **For customers:**
+
 - Limited access to affordable and convenient lunch options.
 - Uncertainty about meal availability and pricing.
 - Time lost searching for food during working hours.
 - Difficulty discovering independent cooks offering suitable meals.
 
 **For cooks:**
+
 - Limited visibility among potential customers.
 - Difficulty understanding customer demand in advance.
 - Risk of preparing food without confirmed demand.
@@ -60,6 +70,8 @@ Customers communicate what they want, propose a budget and select a collection l
 
 The objective is to make lunch ordering more predictable for customers while helping independent cooks manage demand more effectively.
 
+StewRun is designed around pre-orders and scheduled collection rather than conventional on-demand food delivery.
+
 ## How StewRun Works
 
 1. **Discover:** Customers browse available cooks and their published food offerings.
@@ -69,6 +81,8 @@ The objective is to make lunch ordering more predictable for customers while hel
 5. **Agree:** Customers review cook responses and proceed with a suitable offer.
 6. **Prepare:** Cooks prepare confirmed orders.
 7. **Collect:** Customers collect their meals at the selected pickup hub and pay the cook in cash.
+
+Saving a meal request is an initial marketplace interaction. It does not automatically confirm an order or trigger a payment.
 
 ---
 
@@ -102,6 +116,8 @@ The objective is to make lunch ordering more predictable for customers while hel
 - Collection tracking.
 - In-app notifications.
 
+Customers and cooks can register directly. The platform does not require an administrator to approve cook registration.
+
 ### Marketplace
 
 - Shared customer and cook marketplace.
@@ -129,6 +145,8 @@ Customers can describe meal requirements in English or Shona. Ziva interprets th
 
 The customer remains in control of the final meal request, proposed budget, pickup hub and scheduling details.
 
+Ziva assists with interpreting a request; the customer reviews the resulting information before submitting it.
+
 ---
 
 ## Customer-Led Budget Model
@@ -145,6 +163,8 @@ Cooks can then:
 
 This creates a structured negotiation process that gives customers flexibility while allowing cooks to make informed decisions about the work they accept.
 
+A customer's proposed budget is not automatically a confirmed purchase price. Customers review the cook's response before proceeding.
+
 ---
 
 ## Pickup and Payment
@@ -159,15 +179,19 @@ The initial pickup hubs are:
 
 Customers select their preferred pickup hub when submitting a meal request. The selected location is associated with the request and confirmed order.
 
+StewRun is designed around scheduled pickup rather than conventional on-demand delivery.
+
 ### Cash on Collection
 
-The MVP uses cash payments at the pickup hub.
+The current MVP uses cash payments at the pickup hub.
 
 Customers pay the cook directly when collecting their meals.
 
-Online payment integrations, including EcoCash, are reserved for future development and are not required for the cash-only MVP setup.
+The current payment arrangement is not a live online payment integration. EcoCash-related code and configuration are present in the project, but the integration is paused and is not available as an active online payment method.
 
-StewRun is designed around scheduled pickup rather than conventional on-demand delivery.
+Online payment integrations, including EcoCash, may be considered for future development.
+
+**Important distinction:** Saving a meal request does not place an order or charge the customer. A customer must review the cook's response and proceed through the subsequent order process. Payment is made directly to the cook in cash at collection under the current MVP arrangement.
 
 ---
 
@@ -194,9 +218,9 @@ The application prioritizes secure server-side operations, reliable data handlin
 
 The repository uses the Next.js App Router architecture.
 
-Important directories include:
+Important directories and files include:
 
-| Directory | Responsibility |
+| Directory or file | Responsibility |
 |---|---|
 | `app/` | Application pages, layouts and API routes |
 | `app/(auth)/` | Authentication pages |
@@ -207,6 +231,7 @@ Important directories include:
 | `components/ui/` | Shared UI components |
 | `lib/` | Application logic and shared utilities |
 | `lib/server/` | Server-side services and operations |
+| `supabase/` | Supabase project configuration and database resources |
 | `supabase/migrations/` | Database migration files |
 | `test/` | Automated tests |
 | `public/` | Static assets |
@@ -217,18 +242,60 @@ The exact structure may evolve as development continues.
 
 ## Getting Started
 
-These instructions cover Windows, macOS and Linux.
+These instructions explain how to download, configure and run StewRun locally.
+
+The application uses Next.js and requires a compatible Node.js installation.
 
 ### Prerequisites
 
 Install the following:
 
-- Git.
-- Node.js LTS.
-- npm (included with Node.js).
-- Visual Studio Code or another code editor.
-- Access to the configured Supabase project.
-- An OpenAI API key for Ziva functionality.
+| Requirement | Purpose |
+|---|---|
+| Git | Downloading the repository and managing source code |
+| Node.js | Running the application |
+| npm | Installing project dependencies |
+| Visual Studio Code | Recommended code editor |
+| Supabase project access | Connecting to the application database and authentication |
+| OpenAI API key | Enabling Ziva's AI meal interpretation |
+
+**Node.js requirement:** Use Node.js 20.9.0 or later, preferably a supported LTS release. The Next.js version used by this project requires at least Node.js 20.9.0.
+
+Official installation websites:
+
+- Git: https://git-scm.com/downloads
+- Node.js: https://nodejs.org/
+- Visual Studio Code: https://code.visualstudio.com/
+- Supabase: https://supabase.com/
+- OpenAI: https://platform.openai.com/
+
+### 1. Install the Required Software
+
+#### Windows
+
+1. Download and install Git from https://git-scm.com/downloads/win.
+2. Download and install Node.js LTS from https://nodejs.org/.
+3. Download and install Visual Studio Code from https://code.visualstudio.com/.
+4. Restart your terminal after installation if necessary.
+
+Open **PowerShell** and check that the installations work:
+
+```powershell
+git --version
+node --version
+npm --version
+```
+
+Each command should display an installed version.
+
+If Windows reports that a command is not recognized, check that the software was installed correctly and that its installation directory is available in your system PATH.
+
+#### macOS
+
+1. Install Git. You can download it from https://git-scm.com/downloads or install Apple's Command Line Tools.
+2. Install Node.js LTS from https://nodejs.org/.
+3. Install Visual Studio Code from https://code.visualstudio.com/.
+4. Open the Terminal application.
 
 Check your installations:
 
@@ -238,37 +305,146 @@ node --version
 npm --version
 ```
 
-### 1. Clone the Repository
+If Git is not installed, macOS may offer to install the Xcode Command Line Tools when you run `git`.
+
+#### Ubuntu / Linux
+
+Open a terminal.
+
+Update the package list:
+
+```bash
+sudo apt update
+```
+
+Install Git and the basic tools:
+
+```bash
+sudo apt install git curl
+```
+
+Install Node.js 20.9.0 or later using the official Node.js installation instructions or a Node Version Manager such as NVM.
+
+For NVM, follow its official installation instructions:
+
+https://github.com/nvm-sh/nvm
+
+After installing NVM, open a new terminal and install a supported Node.js LTS release:
+
+```bash
+nvm install --lts
+nvm use --lts
+```
+
+Check your installations:
+
+```bash
+git --version
+node --version
+npm --version
+```
+
+Install Visual Studio Code using the official instructions for your Linux distribution:
+
+https://code.visualstudio.com/docs/setup/linux
+
+### 2. Clone the Repository
+
+Cloning downloads a copy of the StewRun source code to your computer.
+
+Open PowerShell, Terminal or your Linux terminal.
+
+Run:
 
 ```bash
 git clone https://github.com/Takuemse/stewrun.git
+```
+
+Enter the project directory:
+
+```bash
 cd stewrun
 ```
 
 The project uses a staging development branch.
 
+Switch to it:
+
 ```bash
 git switch staging
 ```
 
-If you have just cloned the repository and the local branch does not exist:
+If Git reports that the local staging branch does not exist, retrieve the remote branch and create a local tracking branch:
 
 ```bash
 git fetch origin
 git switch -c staging origin/staging
 ```
 
-### 2. Install Dependencies
+Confirm the current branch:
 
-From the project root:
+```bash
+git branch --show-current
+```
+
+The expected output is:
+
+```text
+staging
+```
+
+### 3. Open the Project in Visual Studio Code
+
+From the project directory, run:
+
+```bash
+code .
+```
+
+This opens the current project folder in Visual Studio Code.
+
+If the `code` command is unavailable:
+
+1. Open Visual Studio Code manually.
+2. Select **File → Open Folder**.
+3. Navigate to the folder where you cloned StewRun.
+4. Select the `stewrun` folder.
+5. Open it.
+
+Make sure you open the project root folder, not an individual subfolder.
+
+The project root contains files such as:
+
+- `package.json`
+- `package-lock.json`
+- `README.md`
+- `.env.example`
+- `next.config.ts`
+- `supabase/`
+
+### 4. Install Project Dependencies
+
+Open the integrated terminal in Visual Studio Code:
+
+**Terminal → New Terminal**
+
+Make sure the terminal is inside the `stewrun` project directory.
+
+Run:
 
 ```bash
 npm ci
 ```
 
-`npm ci` installs dependencies using the committed lockfile.
+This installs the dependencies recorded in `package-lock.json`.
 
-If you intentionally change dependencies, use:
+The first installation may take several minutes depending on your internet connection.
+
+**Why use `npm ci`?**
+
+`npm ci` performs a clean dependency installation using the committed lockfile. It helps ensure that different developers install consistent dependency versions.
+
+If you intentionally modify project dependencies, use:
 
 ```bash
 npm install
@@ -276,31 +452,104 @@ npm install
 
 Commit the corresponding changes to `package.json` and `package-lock.json` together.
 
-### 3. Configure Environment Variables
+### 5. Configure Environment Variables
 
-Create a local environment file named:
+StewRun connects to external services using environment variables.
+
+Create a local file named:
 
 ```text
 .env.local
 ```
 
-Add the required configuration values. See [Environment Configuration](#environment-configuration).
+Place it in the project root, at the same level as `package.json`.
 
-Never commit this file.
+You can create it through Visual Studio Code:
 
-### 4. Start the Development Server
+1. Open the Explorer panel.
+2. Right-click the project root folder.
+3. Select **New File**.
+4. Enter `.env.local`.
+5. Add the configuration values described in the next section.
+
+Do not commit `.env.local` or share its real credentials.
+
+### 6. Start the Development Server
+
+After installing dependencies and configuring the environment variables, run:
 
 ```bash
 npm run dev
 ```
 
-Open the application:
+When the development server starts successfully, open:
+
+http://localhost:3000
+
+You should see the StewRun application.
+
+To stop the development server, return to the terminal and press:
 
 ```text
-http://localhost:3000
+Ctrl + C
 ```
 
-Stop the development server with `Ctrl + C`.
+### 7. Troubleshooting First-Time Setup
+
+**Problem: `git` is not recognized**
+
+Git may not be installed or may not be available in your system PATH.
+
+Install Git and reopen your terminal.
+
+**Problem: `node` or `npm` is not recognized**
+
+Install Node.js LTS and reopen your terminal.
+
+**Problem: Node.js version is too old**
+
+Check the installed version:
+
+```bash
+node --version
+```
+
+Install Node.js 20.9.0 or later.
+
+**Problem: Dependencies fail to install**
+
+Check that:
+
+- You are inside the project directory.
+- Node.js and npm are installed.
+- Your internet connection is working.
+- `package.json` and `package-lock.json` are present.
+
+Then retry:
+
+```bash
+npm ci
+```
+
+**Problem: Port 3000 is already in use**
+
+Another application may already be using port 3000. Stop that application or allow Next.js to use another available port if prompted.
+
+**Problem: Supabase connection fails**
+
+Check that:
+
+- `.env.local` exists in the project root.
+- The Supabase URL is correct.
+- The Supabase public key is correct.
+- The Supabase project is accessible.
+- Your internet connection is working.
+
+**Problem: Ziva does not interpret meal requests**
+
+Check that the server-side `OPENAI_API_KEY` is configured correctly and that the key has access to the required API.
+
+Restart the development server after changing environment variables.
 
 ---
 
@@ -308,56 +557,104 @@ Stop the development server with `Ctrl + C`.
 
 The application uses environment variables to connect to external services.
 
-The following variables are present in the project's environment-variable template.
+### Environment File
+
+The repository contains an `.env.example` file intended to document the expected configuration names.
+
+Create your own `.env.local` file in the project root.
+
+Do not rename `.env.example` to `.env.local` if you need to preserve the example template.
 
 ### Required Application Configuration
 
+The following values are needed for the main application integrations:
+
 ```env
+# Supabase
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
+
+# OpenAI
 OPENAI_API_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
 ```
 
-### Additional Configuration
+Obtain the Supabase URL and public key from the settings for the Supabase project you are authorized to use.
 
-The repository also contains configuration names for administration and legacy payment functionality:
+Obtain the OpenAI API key from:
+
+https://platform.openai.com/api-keys
+
+### Additional Server-Side Configuration
+
+The repository also uses additional configuration for privileged server-side operations:
 
 ```env
+# Supabase server-side administration
+SUPABASE_SERVICE_ROLE_KEY=
+
+# Administration configuration
 ADMIN_USER_IDS=
 
-ECOCASH_BASE_URL=
+# Scheduled endpoint protection
+CRON_SECRET=
+```
+
+These variables have specific purposes:
+
+| Variable | Purpose |
+|---|---|
+| `SUPABASE_SERVICE_ROLE_KEY` | Privileged server-side Supabase operations |
+| `ADMIN_USER_IDS` | Configures permitted administrator user IDs |
+| `CRON_SECRET` | Protects the scheduled reconciliation endpoint |
+
+Some of these variables are only needed when the corresponding functionality is used. They are not all prerequisites for every basic local development task.
+
+`ADMIN_USER_IDS` is separate from customer and cook registration. It does not mean cooks require administrator approval.
+
+### Legacy EcoCash Configuration
+
+The repository also contains configuration names for EcoCash-related functionality:
+
+```env
+# Legacy / paused EcoCash configuration
+ECOCASH_BASE_URL=https://developers.ecocash.co.zw/sandbox/payment/v1
 ECOCASH_BASIC_AUTH_USERNAME=
 ECOCASH_BASIC_AUTH_PASSWORD=
 ECOCASH_MERCHANT_CODE=
 ECOCASH_MERCHANT_PIN=
 ECOCASH_MERCHANT_NUMBER=
-ECOCASH_CURRENCY=
-ECOCASH_COUNTRY_CODE=
-ECOCASH_TERMINAL_ID=
-ECOCASH_LOCATION=
-ECOCASH_SUPER_MERCHANT_NAME=
-ECOCASH_MERCHANT_NAME=
+ECOCASH_CURRENCY=USD
+ECOCASH_COUNTRY_CODE=ZW
+ECOCASH_TERMINAL_ID=UAT00003
+ECOCASH_LOCATION=Harare
+ECOCASH_SUPER_MERCHANT_NAME=ECOCASH
+ECOCASH_MERCHANT_NAME=UAT STORE 3
 ```
 
-These are configuration names, not a statement that every variable is required for the current MVP.
+These values relate to paused or future payment functionality. They are not required to use the current cash-on-collection MVP.
 
-**Important:**
+Do not add real merchant credentials unless the payment integration is deliberately being reactivated and the implementation has been reviewed.
 
-- Use the correct Supabase project URL and public key for your development environment.
-- Keep the Supabase service-role key server-side only.
-- Never expose the OpenAI API key in browser-side code.
-- Never commit passwords, merchant PINs, API keys or other credentials.
-- Do not use production credentials in local development.
-- The EcoCash variables relate to legacy or future payment functionality and are not required for the cash-on-collection MVP.
+### Environment Variable Security
 
-Do not copy real credentials into documentation, screenshots, GitHub issues or public messages.
+- Variables beginning with `NEXT_PUBLIC_` are exposed to the browser and must never contain secrets.
+- The Supabase public/anonymous key is intended for client-side use, but database access must still be protected through Row Level Security and appropriate authorization.
+- Keep `SUPABASE_SERVICE_ROLE_KEY` server-side only.
+- Keep `OPENAI_API_KEY` server-side only.
+- Never expose passwords, merchant PINs or API secrets in frontend code.
+- Never commit `.env.local`.
+- Do not use production credentials for ordinary local development.
+- Do not share environment files through public repositories, screenshots or messages.
+
+The `.env.example` file should contain safe placeholders only. Actual credentials belong in `.env.local` or the appropriate secure deployment environment.
+
+After changing environment variables, restart the development server for the changes to take effect.
 
 ---
 
 ## Running the Application
 
-### Development
+### Development Server
 
 ```bash
 npm run dev
@@ -430,6 +727,8 @@ A successful local check does not replace staging verification or end-to-end tes
 
 Test both customer and cook workflows when making changes that affect the marketplace.
 
+Testing should consider the complete interaction between customer requests, cook responses, order progression, pickup arrangements and payment handling.
+
 ---
 
 ## Database and Supabase
@@ -442,6 +741,8 @@ Database changes are maintained through SQL migration files in:
 supabase/migrations/
 ```
 
+The repository also includes Supabase project configuration.
+
 ### Database Development Guidelines
 
 - Review existing migrations before creating new ones.
@@ -452,15 +753,54 @@ supabase/migrations/
 - Test changes against the intended staging project.
 - Never assume the local environment is linked to the correct Supabase project.
 
-### Important Repository Setup Note
+### Supabase Cloud and Local Development
 
-The current repository snapshot does not include `supabase/config.toml`.
+There are two different ways to work with Supabase:
 
-Consequently, local Supabase CLI workflows should not be assumed to be ready simply because migration files exist.
+**Using the configured cloud project**
 
-Before using commands such as `supabase link` or `supabase db push`, ensure the repository has the appropriate Supabase project configuration and that the target project has been independently verified.
+The application can connect to an existing Supabase project through the credentials in `.env.local`.
 
-Never apply migrations to production without reviewing the SQL and obtaining explicit approval.
+This is the normal approach when a developer has been given access to the project's development or staging environment.
+
+**Running Supabase locally**
+
+The repository contains a Supabase configuration file. Developers who need a local Supabase stack can use the Supabase CLI and Docker.
+
+After installing and configuring those tools, the local stack can be started with:
+
+```bash
+supabase start
+```
+
+The local service information can be inspected with:
+
+```bash
+supabase status
+```
+
+To stop the local stack:
+
+```bash
+supabase stop
+```
+
+Running Supabase locally is optional for developers who are using an existing cloud project.
+
+### Remote Database Safety
+
+Before using commands such as:
+
+```bash
+supabase link
+supabase db push
+```
+
+Confirm that the Supabase CLI is configured for the intended project.
+
+Verify the project reference and target environment before applying migrations. The presence of local migration files does not establish which remote database a command will affect.
+
+Never apply migrations to production without reviewing the SQL, verifying the target project and obtaining explicit approval.
 
 ---
 
@@ -486,6 +826,12 @@ git pull origin staging
 git switch -c feature/your-feature-name
 ```
 
+Use a meaningful branch name, for example:
+
+```bash
+git switch -c feature/customer-profile
+```
+
 ### Review Your Changes
 
 ```bash
@@ -494,12 +840,20 @@ git diff
 git diff --check
 ```
 
+Review the changes before staging them.
+
 ### Stage Specific Files
 
 Stage only the files relevant to your change.
 
 ```bash
 git add path/to/file
+```
+
+For example:
+
+```bash
+git add app/page.tsx
 ```
 
 Avoid staging unrelated work.
@@ -524,6 +878,8 @@ Changes should be reviewed and verified in staging before they are considered fo
 
 Do not merge the entire staging branch into `main` merely to publish an isolated documentation or maintenance change. Use a separate branch and pull request when appropriate.
 
+The release branch should contain reviewed and tested changes suitable for production deployment.
+
 ---
 
 ## Security
@@ -543,6 +899,8 @@ The application is designed to use:
 
 Users should only access information and perform actions permitted by their roles and ownership of the relevant records.
 
+### Security Practices
+
 Never:
 
 - Commit `.env.local`.
@@ -550,6 +908,9 @@ Never:
 - Trust client-provided user roles without server-side validation.
 - Disable RLS to work around application errors.
 - Apply unreviewed database changes to production.
+- Publish API keys, passwords, merchant PINs or other credentials.
+
+Administration-related security configuration should be treated separately from customer and cook registration. Both customer and cook registration are supported without an administrator cook-approval workflow.
 
 ---
 
@@ -557,7 +918,9 @@ Never:
 
 **Active Development — MVP**
 
-StewRun is under active development, with a focus on completing the customer and cook experience.
+StewRun is being developed as a pre-order lunch marketplace for Harare, Zimbabwe.
+
+Development and verification focus on completing and validating the customer and cook experience.
 
 Current development priorities include:
 
@@ -571,7 +934,9 @@ Current development priorities include:
 - Secure backend integration.
 - End-to-end testing and deployment readiness.
 
-Features described in this README represent the intended product scope. Their implementation and production readiness should be verified as development progresses.
+The current payment arrangement is cash paid directly to the cook at collection. EcoCash-related functionality is paused and should not be interpreted as an active online payment service.
+
+Features described in this README represent the project's product scope and documented functionality. Their implementation and production readiness should be verified as development and release checks progress.
 
 ---
 
@@ -579,7 +944,7 @@ Features described in this README represent the intended product scope. Their im
 
 Future improvements may include:
 
-- Online payment integrations.
+- Online payment integrations, including the possible reactivation of EcoCash.
 - Expanded pickup locations.
 - Improved cook discovery.
 - Customer reviews and ratings.
@@ -608,18 +973,38 @@ All proposed changes should be reviewed and tested before integration into the m
 
 ---
 
-## Project Information
+## Project Ownership and Information
+
+### Project Ownership and Development
+
+StewRun was developed by **William** as a software development capstone project.
+
+**Role: Project Developer**
+
+The project involved the design, development, implementation and testing of a pre-order lunch marketplace for Harare, Zimbabwe.
+
+The developer's responsibilities included the technical implementation of the application, including frontend development, backend integration, database development, AI integration, application testing and deployment preparation.
+
+### Project Information
 
 | Detail | Information |
 |---|---|
 | Project | StewRun |
 | Product | Pre-Order Lunch Marketplace |
+| Developer | William |
+| Project Role | Software Developer |
+| Project Type | Software Development Capstone Project |
 | Initial Market | Harare, Zimbabwe |
 | Platform | Mobile-first Progressive Web Application |
 | Repository | [github.com/Takuemse/stewrun](https://github.com/Takuemse/stewrun) |
 | Development Branch | `staging` |
 | Release Branch | `main` |
+| Current Payment Method | Cash paid directly to the cook at collection |
+| Online Payment Status | EcoCash integration paused; not an active online payment method |
 
 ---
 
 *StewRun — Bringing customers and local cooks together, one meal at a time.*
+ration into the main release.
+
+---
